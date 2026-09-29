@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Real-time chat (Phase 8.1) API + WebSocket tests.
-# Requires the API running on :5000 + Postgres. Run inside nix-shell.
+# Requires the API running on :5000 + Postgres. Run inside nix develop:  nix develop -c ./test_chat_api.sh
+# (Cần bật flakes: nix.settings.experimental-features = [ "nix-command" "flakes" ];)
 set -uo pipefail
 
 BASE="http://localhost:5000/api"

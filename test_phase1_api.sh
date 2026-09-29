@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Phase 1 (Authentication) API tests — mirrors the "Test cases" checklist in
 # kernelstore_prompt.md §PHASE 1. Requires the API running on :5000 + Postgres.
-# Run inside nix-shell (needs curl + jq):  nix-shell --run ./test_phase1_api.sh
+# Run inside nix develop (needs curl + jq):  nix develop -c ./test_phase1_api.sh
+# (Cần bật flakes: nix.settings.experimental-features = [ "nix-command" "flakes" ];)
 set -uo pipefail
 
 BASE="http://localhost:5000/api"

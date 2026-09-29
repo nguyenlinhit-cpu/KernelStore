@@ -41,14 +41,7 @@ func main() {
 	defer cancel()
 
 	// ── Database ───────────────────────────────────────────────────────────
-	// Xác định thư mục migrations (tương đối so với thư mục chạy hoặc đường dẫn tuyệt đối).
-	migrationsDir, err := findMigrationsDir()
-	if err != nil {
-		slog.Error("Cannot find migrations directory", "err", err)
-		os.Exit(1)
-	}
-
-	if err := repository.RunMigrations(cfg, migrationsDir); err != nil {
+	if err := repository.RunMigrations(cfg); err != nil {
 		slog.Error("Migration failed", "err", err)
 		os.Exit(1)
 	}
@@ -81,8 +74,7 @@ func main() {
 	// ── Upload dir ────────────────────────────────────────────────────────
 	uploadDir := cfg.UploadDir
 	if uploadDir == "" {
-		// Mặc định: backend/uploads (cạnh thư mục migrations), chạy từ đâu cũng đúng.
-		uploadDir = filepath.Join(filepath.Dir(migrationsDir), "uploads")
+		uploadDir = findUploadsDir()
 	}
 	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
 		slog.Error("Cannot create upload dir", "dir", uploadDir, "err", err)
@@ -146,21 +138,13 @@ func addSecurityHeaders(next http.Handler) http.Handler {
 	})
 }
 
-// findMigrationsDir tìm thư mục migrations tương đối so với executable hoặc cwd.
-func findMigrationsDir() (string, error) {
-	// Thử relative paths phổ biến
-	candidates := []string{
-		"migrations",
-		"backend/migrations",
-		filepath.Join("..", "migrations"),
-	}
-	for _, c := range candidates {
-		abs, _ := filepath.Abs(c)
-		if info, err := os.Stat(abs); err == nil && info.IsDir() {
-			return abs, nil
+// findUploadsDir: thư mục ảnh mặc định khi chưa đặt UPLOAD_DIR — backend/uploads
+// khi chạy từ gốc repo, uploads/ khi chạy từ thư mục backend.
+func findUploadsDir() string {
+	for _, dir := range []string{"uploads", filepath.Join("backend", "uploads")} {
+		if info, err := os.Stat(dir); err == nil && info.IsDir() {
+			return dir
 		}
 	}
-	// Fallback: dùng cwd + migrations
-	abs, _ := filepath.Abs("migrations")
-	return abs, nil
+	return "uploads"
 }

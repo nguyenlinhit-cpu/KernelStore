@@ -3,7 +3,8 @@
 # Covers auth, browse, cart, orders, seller promotion + shop moderation,
 # products, seller dashboard/sales, the ship→confirm-receipt→review lifecycle,
 # and RBAC checks. Requires the API running on :5000 + Postgres.
-# Run inside nix-shell (needs curl + jq):  nix-shell --run ./test_full_api.sh
+# Run inside nix develop (needs curl + jq):  nix develop -c ./test_full_api.sh
+# (Cần bật flakes: nix.settings.experimental-features = [ "nix-command" "flakes" ];)
 #
 # Seeded accounts used: admin@ks.com / Admin@12345
 set -uo pipefail

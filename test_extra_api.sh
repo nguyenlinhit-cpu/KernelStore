@@ -3,7 +3,8 @@
 # test_full_api.sh / test_chat_api.sh:
 #   category CRUD + block-delete, shop settings update, admin shop ban/unban/delete,
 #   admin user ban/unban, order cancel + return flow, product delete,
-#   refresh-token rotation. Run inside nix-shell: nix-shell --run ./test_extra_api.sh
+#   refresh-token rotation. Run inside nix develop: nix develop -c ./test_extra_api.sh
+# (Cần bật flakes: nix.settings.experimental-features = [ "nix-command" "flakes" ];)
 set -uo pipefail
 
 B="http://localhost:5000/api"

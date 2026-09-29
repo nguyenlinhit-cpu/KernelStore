@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # One-command full stack for NixOS: Database -> Backend -> Frontend.
-# Run inside nix-shell:   nix-shell --run ./run.sh   (cần Go 1.27, templ, tailwindcss, air)
+# Run inside nix develop:  nix develop -c ./run.sh   (flake cung cấp Go 1.27, templ, tailwindcss, air)
+# (Cần bật flakes: nix.settings.experimental-features = [ "nix-command" "flakes" ];)
 # Brings up Postgres (docker), waits until healthy, starts the backend in the
 # background, waits until :5000 answers, then runs the frontend in the
 # foreground. Ctrl+C stops the frontend and tears down the backend.

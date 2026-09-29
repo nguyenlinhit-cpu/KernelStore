@@ -18,3 +18,8 @@ test/wsclient/wsclient
 
 # LibreOffice lock files
 .~lock.*#
+
+# Nix: output của `nix build` và cache của direnv (`use flake`)
+result
+result-*
+.direnv/

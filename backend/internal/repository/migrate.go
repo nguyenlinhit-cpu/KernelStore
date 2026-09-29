@@ -8,18 +8,19 @@ import (
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 
 	"github.com/KernelStore/backend/internal/config"
+	"github.com/KernelStore/backend/migrations"
 )
 
-// RunMigrations chạy tất cả migrations chưa áp dụng.
-// migrationsDir là đường dẫn thư mục chứa file .sql (ví dụ "migrations").
-func RunMigrations(cfg *config.Config, migrationsDir string) error {
-	dbURL := cfg.DatabaseURL()
-	sourceURL := "file://" + migrationsDir
-
-	m, err := migrate.New(sourceURL, dbURL)
+// RunMigrations áp dụng mọi migration chưa chạy (nguồn: file SQL nhúng trong binary).
+func RunMigrations(cfg *config.Config) error {
+	src, err := iofs.New(migrations.FS, ".")
+	if err != nil {
+		return fmt.Errorf("migration source: %w", err)
+	}
+	m, err := migrate.NewWithSourceInstance("iofs", src, cfg.DatabaseURL())
 	if err != nil {
 		return fmt.Errorf("migrate.New: %w", err)
 	}

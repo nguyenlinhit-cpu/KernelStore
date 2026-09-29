@@ -2,8 +2,9 @@
 # End-to-end test for the product warranty feature (bảo hành).
 # Covers: warranty period on products, claim creation with eligibility checks,
 # customer listing/cancel, seller/admin approve->process->complete lifecycle.
-# Run inside nix-shell (needs curl + jq), backend on :5000:
-#   nix-shell --run ./test_warranty_api.sh
+# Run inside nix develop (needs curl + jq), backend on :5000:
+#   nix develop -c ./test_warranty_api.sh
+# (Cần bật flakes: nix.settings.experimental-features = [ "nix-command" "flakes" ];)
 set -uo pipefail
 B="http://localhost:5000/api"
 TS="$(date +%s)"
