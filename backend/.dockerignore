@@ -1,0 +1,6 @@
+**/.git
+**/tmp
+**/.direnv
+**/result
+**/.env
+**/*.log

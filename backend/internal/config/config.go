@@ -33,6 +33,11 @@ type Config struct {
 
 	// Upload
 	UploadDir string // thư mục chứa ảnh upload; rỗng = backend/uploads
+
+	// PublicURL là địa chỉ backend mà trình duyệt truy cập được (vd http://localhost:5000),
+	// dùng để dựng URL ảnh upload. Rỗng = lấy theo Host của request.
+	// Cần khi frontend gọi backend qua host nội bộ (vd http://backend:5000 trong Docker).
+	PublicURL string
 }
 
 // Load đọc cấu hình từ biến môi trường. Giá trị mặc định khớp appsettings.json.
@@ -56,6 +61,7 @@ func Load() *Config {
 		CORSAllowedOrigins: envListOr("CORS_ORIGINS", []string{"http://localhost:8080", "http://127.0.0.1:8080"}),
 
 		UploadDir: envOr("UPLOAD_DIR", ""),
+		PublicURL: strings.TrimRight(envOr("PUBLIC_URL", ""), "/"),
 	}
 }
 

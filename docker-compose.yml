@@ -1,3 +1,11 @@
+# Toàn bộ stack KernelStore: Postgres 16 → Backend (:5000) → Frontend (:8080).
+#   docker compose up -d --build          # build + chạy
+#   docker compose run --rm backend seed  # seed dữ liệu mẫu (tuỳ chọn)
+#   docker compose down                   # tắt (giữ dữ liệu; thêm -v để xoá)
+# Đổi cổng trên máy host: WEB_PORT=8081 API_PORT=5000 docker compose up -d
+# (trình duyệt gọi thẳng backend cho ảnh upload và WebSocket chat, nên API_PORT phải mở ra host).
+# Chỉ chạy DB (khi dev bằng nix develop): docker compose up -d postgres
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -17,5 +25,41 @@ services:
       timeout: 5s
       retries: 5
 
+  backend:
+    build: ./backend
+    image: kernelstore-backend
+    container_name: kernelstore-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: kernelstore
+      DB_USER: admin
+      DB_PASSWORD: admin123
+      PUBLIC_URL: http://localhost:${API_PORT:-5000}
+      CORS_ORIGINS: http://localhost:${WEB_PORT:-8080},http://127.0.0.1:${WEB_PORT:-8080}
+    ports:
+      - "${API_PORT:-5000}:5000"
+    volumes:
+      - uploads_data:/app/uploads
+
+  frontend:
+    build: ./frontend
+    image: kernelstore-frontend
+    container_name: kernelstore-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      API_BASE: http://backend:5000/api
+      WS_BASE: ws://localhost:${API_PORT:-5000}/ws/chat
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+
 volumes:
   postgres_data:
+  uploads_data:

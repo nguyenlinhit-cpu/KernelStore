@@ -65,11 +65,15 @@ func (h *Handler) uploadImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	scheme := "http"
-	if r.TLS != nil {
-		scheme = "https"
+	base := h.cfg.PublicURL
+	if base == "" {
+		scheme := "http"
+		if r.TLS != nil {
+			scheme = "https"
+		}
+		base = scheme + "://" + r.Host
 	}
-	dto.OK(w, map[string]string{"url": scheme + "://" + r.Host + "/uploads/" + name}, "Đã tải ảnh lên")
+	dto.OK(w, map[string]string{"url": base + "/uploads/" + name}, "Đã tải ảnh lên")
 }
 
 // formFile tìm file theo tên field, không phân biệt hoa thường như model binding ASP.NET.
