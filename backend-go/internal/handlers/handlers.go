@@ -33,4 +33,6 @@ func (h *Handler) Register(rt *httpx.Router) {
 	h.registerUploads(rt)
 	h.registerCart(rt)
 	h.registerOrders(rt)
+	h.registerReviews(rt)
+	h.registerWarranty(rt)
 }
