@@ -24,5 +24,11 @@ func New(db *pgxpool.Pool, cfg *config.Config, tokens *services.TokenService, up
 // Register đăng ký toàn bộ endpoint /api/* (tương đương app.MapControllers()).
 // Các nhóm endpoint được thêm dần theo từng giai đoạn chuyển đổi.
 func (h *Handler) Register(rt *httpx.Router) {
-	_ = rt
+	h.registerAuth(rt)
+	h.registerShops(rt)
+	h.registerAdminShops(rt)
+	h.registerCategories(rt)
+	h.registerSellerCategories(rt)
+	h.registerProducts(rt)
+	h.registerUploads(rt)
 }
