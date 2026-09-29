@@ -14,8 +14,56 @@ Hướng dẫn cho **Windows 10/11** (thay cho phần "Chạy trên NixOS" trong
 
 ---
 
+## 🐳 Cách nhanh nhất — chạy toàn bộ bằng Docker (không cần cài Go/templ/Tailwind)
+
+Chỉ cần **Docker Desktop**. Source code và môi trường chạy được đóng gói sẵn thành image. Cả 3 service (Postgres, backend, frontend) chạy trong container. Muốn sửa code và tự reload thì dùng cách cài công cụ ở các bước bên dưới.
+
+**1. Cài Docker Desktop** (một lần) rồi mở lên, đợi trạng thái *Engine running*:
+
+```powershell
+winget install Docker.DockerDesktop
+```
+
+> Docker Desktop cần WSL 2. Nếu nó báo thiếu, chạy `wsl --install` trong PowerShell (Run as Administrator), khởi động lại máy rồi mở lại Docker Desktop.
+
+**2. Chạy cả stack.** Double-click `win-docker.bat`, hoặc gõ lệnh trong PowerShell:
+
+```powershell
+cd C:\path\to\KernelStore
+docker compose up -d --build        # lần đầu build image mất vài phút
+docker compose ps                   # 3 container: postgres, backend, frontend
+```
+
+Mở **http://localhost:8080** và đăng nhập `admin@ks.com` / `Admin@12345`.
+
+**3. Seed dữ liệu mẫu** (tuỳ chọn): 10 danh mục, 7 shop, 57 sản phẩm kèm ảnh.
+
+```powershell
+docker compose run --rm backend seed
+```
+
+**Lệnh hay dùng:**
+
+| Việc | Lệnh |
+|---|---|
+| Xem log | `docker compose logs -f backend frontend` |
+| Build lại sau khi sửa code / `git pull` | `docker compose up -d --build` |
+| Tắt (giữ dữ liệu) | `docker compose down` |
+| Tắt và **xoá sạch** DB + ảnh upload | `docker compose down -v` |
+
+**Cổng 8080 bị chiếm?** Đổi cổng frontend trên máy host:
+
+```powershell
+$env:WEB_PORT = "8081"; docker compose up -d --build     # rồi mở http://localhost:8081
+```
+
+> Cổng `5000` của backend cũng phải trống. Trình duyệt lấy ảnh và mở WebSocket chat trực tiếp từ `localhost:5000`, và ảnh của dữ liệu mẫu trỏ cố định tới cổng này.
+
+---
+
 ## 📑 Mục lục
 
+0. [Cách nhanh nhất — Docker toàn bộ](#-cách-nhanh-nhất--chạy-toàn-bộ-bằng-docker-không-cần-cài-gotempltailwind)
 1. [Cài đặt công cụ (một lần)](#-bước-0--cài-đặt-công-cụ-một-lần)
 2. [Bước 1 — Database: **Phương án A (Docker)** hoặc **Phương án B (PostgreSQL native)**](#-bước-1--database-chọn-1-trong-2-phương-án)
 3. [Bước 2 — Backend](#-bước-2--backend-go-api)
@@ -134,7 +182,7 @@ Mo trinh duyet...                       → TỰ mở http://localhost:8080
 
 ```powershell
 cd C:\path\to\KernelStore
-docker compose up -d      # postgres:16 tại localhost:5433
+docker compose up -d postgres   # postgres:16 tại localhost:5433
 docker compose ps         # đợi STATUS = healthy
 ```
 
@@ -148,6 +196,7 @@ Get-Content database.sql | docker exec -i kernelstore-postgres psql -U admin -d 
 
 | File | Việc |
 |------|------|
+| `win-docker.bat`   | Build + chạy cả stack **trong Docker**, không cần cài Go ([Cách nhanh nhất](#-cách-nhanh-nhất--chạy-toàn-bộ-bằng-docker-không-cần-cài-gotempltailwind)). |
 | `win-run-all.bat`  | Tự động cả stack (Cách A1) — cần Docker. |
 | `win-db.bat`       | Chỉ bật Database (Docker). |
 | `win-backend.bat`  | Chỉ chạy Backend (`go run ./cmd/api`, `:5000`). |
@@ -302,4 +351,5 @@ cd ..\frontend;  templ generate;  go build -o kernelstore-web.exe ./cmd/web
 - **`Cannot connect to the Docker daemon`** (Phương án A) → chưa bật Docker Desktop.
 - **Backend không nối được DB** → DB chưa chạy, hoặc cổng không khớp: mặc định `5433`, đổi bằng `$env:DB_PORT`.
 - **Port bị chiếm (5000/5433/8080)** → tìm tiến trình: `netstat -ano | findstr :8080`. Đổi cổng frontend: `$env:WEB_ADDR = ":8081"`.
-- **Reset sạch DB** → Docker: `docker compose down -v` rồi `up -d`; native: `DROP DATABASE kernelstore;` rồi tạo lại. Sau đó seed lại hoặc nạp `database.sql`.
+- **Chạy `win-docker.bat` xong rồi chạy `win-run-all.bat` báo trùng cổng 5000/8080** → container backend/frontend vẫn đang chạy. Tắt bằng `docker compose stop backend frontend`.
+- **Reset sạch DB** → Docker: `docker compose down -v` rồi `up -d postgres` (hoặc `up -d --build` nếu chạy toàn bộ bằng Docker); native: `DROP DATABASE kernelstore;` rồi tạo lại. Sau đó seed lại hoặc nạp `database.sql`.
