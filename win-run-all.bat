@@ -7,7 +7,7 @@ echo ================================================
 
 echo.
 echo [1/5] Database (Docker)...
-docker compose up -d
+docker compose up -d postgres
 if errorlevel 1 (
   echo.
   echo [LOI] Docker khong chay. Hay bat Docker Desktop roi thu lai.

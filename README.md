@@ -62,7 +62,8 @@ Cần **3 thành phần chạy cùng lúc**, đúng thứ tự: **Database → B
 # Docker — không cần cài Go/Nix, chỉ cần Docker. Build + chạy cả stack:
 docker compose up -d --build
 docker compose run --rm backend seed        # seed dữ liệu mẫu (tuỳ chọn)
-# Cổng 8080/5000 bị chiếm? Đổi cổng host: WEB_PORT=8081 API_PORT=5001 docker compose up -d --build
+# Cổng 8080 bị chiếm? Đổi cổng host: WEB_PORT=8081 docker compose up -d --build
+# (API_PORT đổi được, nhưng ảnh của dữ liệu mẫu trỏ cố định tới localhost:5000)
 # Tắt: docker compose down   (thêm -v để xoá cả DB và ảnh upload)
 ```
 
@@ -79,7 +80,7 @@ win-run-all.bat
 **Hoặc chạy tay từng terminal** (mỗi terminal đã `nix develop`):
 
 ```sh
-docker compose up -d                  # Terminal 1 — Postgres 16 (:5433)
+docker compose up -d postgres         # Terminal 1 — Postgres 16 (:5433)
 cd backend && go run ./cmd/api        # Terminal 2 — Backend  → http://localhost:5000
 cd frontend && air                    # Terminal 3 — Frontend → http://localhost:8080 (tự reload)
 ```
@@ -117,7 +118,7 @@ nix develop        # lần đầu tải nixpkgs hơi lâu; in ra phiên bản go
 ### 2. Database (PostgreSQL 16)
 
 ```sh
-docker compose up -d          # postgres:16 tại localhost:5433 (db/user/pass: kernelstore/admin/admin123)
+docker compose up -d postgres # postgres:16 tại localhost:5433 (db/user/pass: kernelstore/admin/admin123)
 docker compose ps             # đợi healthy
 ```
 
@@ -142,6 +143,7 @@ go run ./cmd/api              # → Now listening on: http://localhost:5000
 | `JWT_ACCESS_EXPIRY_MINS` / `JWT_REFRESH_EXPIRY_DAYS` | `30` / `7` | hạn token |
 | `CORS_ORIGINS` | `http://localhost:8080,http://127.0.0.1:8080` | origin frontend |
 | `UPLOAD_DIR` | `backend/uploads` | thư mục ảnh upload |
+| `PUBLIC_URL` | (theo Host của request) | địa chỉ backend trình duyệt truy cập được, dùng dựng URL ảnh upload (Docker: `http://localhost:5000`) |
 
 ### 4. Seed dữ liệu mẫu (tuỳ chọn, 1 lệnh)
 
@@ -179,7 +181,7 @@ Biến môi trường: `WEB_ADDR` (`:8080`), `API_BASE` (`http://localhost:5000/
 nix develop -c ./run.sh
 ```
 
-`docker compose up -d` → đợi Postgres healthy → build + chạy backend nền (log `/tmp/kernelstore-backend.log`) → đợi `:5000` → chạy frontend bằng `air`. **Ctrl+C** dừng frontend và tắt backend (Postgres vẫn chạy; `docker compose down` để tắt hẳn).
+`docker compose up -d postgres` → đợi Postgres healthy → build + chạy backend nền (log `/tmp/kernelstore-backend.log`) → đợi `:5000` → chạy frontend bằng `air`. **Ctrl+C** dừng frontend và tắt backend (Postgres vẫn chạy; `docker compose down` để tắt hẳn).
 
 ### Nâng phiên bản công cụ
 
