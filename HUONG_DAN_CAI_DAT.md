@@ -13,8 +13,8 @@ Thông tin kết nối mặc định của đồ án:
 | Host / Port     | `localhost` / `5433` |
 
 > Lưu ý port: đồ án map cổng **5433** trên máy → 5432 trong container (xem `docker-compose.yml`),
-> và backend kết nối tới `Port=5433`. Nếu bạn dùng PostgreSQL cài trực tiếp (Cách 2) chạy ở cổng
-> mặc định `5432`, hãy sửa `Port=5433` thành `Port=5432` trong `appsettings.json`.
+> và backend mặc định kết nối tới cổng `5433`. Nếu bạn dùng PostgreSQL cài trực tiếp (Cách 2) chạy ở cổng
+> mặc định `5432`, hãy chạy backend với biến môi trường `DB_PORT=5432`.
 
 ---
 
@@ -65,14 +65,36 @@ psql -U admin -d kernelstore -c "\dt"
 ```
 
 Kết quả phải thấy các bảng: `Products`, `Categories`, `Shops`, `Orders`, `AspNetUsers`, ...
-(tổng cộng 19 bảng). Nếu thấy đủ bảng và có dữ liệu là đã cài thành công.
+(tổng cộng 21 bảng, gồm cả `__EFMigrationsHistory` còn lại từ phiên bản cũ; sau khi backend chạy lần đầu
+có thêm bảng `schema_migrations` của golang-migrate).
+Nếu thấy đủ bảng và có dữ liệu là đã cài thành công.
 
 ---
 
 ## Kết nối từ backend
 
-Chuỗi kết nối (connection string) trong `backend/KernelStore.Api/appsettings.json`:
+Backend (Go) đọc thông tin kết nối từ biến môi trường; giá trị mặc định đã khớp bảng ở trên:
 
+| Biến          | Mặc định      |
+|---------------|---------------|
+| `DB_HOST`     | `localhost`   |
+| `DB_PORT`     | `5433`        |
+| `DB_NAME`     | `kernelstore` |
+| `DB_USER`     | `admin`       |
+| `DB_PASSWORD` | `admin123`    |
+| `DB_SSLMODE`  | `disable`     |
+
+Ví dụ Postgres ở cổng 5432:
+
+```bash
+cd backend
+DB_PORT=5432 go run ./cmd/api                     # Linux / Git Bash
+$env:DB_PORT = "5432"; go run ./cmd/api           # Windows PowerShell
 ```
-Host=localhost;Port=5433;Database=kernelstore;Username=admin;Password=admin123
-```
+
+Khi khởi động, backend tự chạy migration. Với database vừa nạp từ `database.sql`, migration chỉ
+ghi nhận schema đã có (không tạo lại, không mất dữ liệu). Tài khoản trong file (admin + 7 seller) đăng
+nhập được ngay: mật khẩu băm PBKDF2 đúng định dạng backend dùng (xem bảng tài khoản trong [README.md](./README.md)).
+
+Không muốn nạp file `.sql`? Bỏ qua các bước trên, để backend tự tạo schema rồi chạy `./seed.sh`
+(hoặc `win-seed.bat`) để có cùng bộ dữ liệu mẫu.

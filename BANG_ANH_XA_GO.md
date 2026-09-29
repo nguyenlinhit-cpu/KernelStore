@@ -2,6 +2,7 @@
 
 > Branch: `go-migration`. Tài liệu này dùng để duyệt trước khi viết code; các giai đoạn sau bám theo nó.
 > Code mới nằm ở `backend-go/` và `frontend-go/`; code C#/Rust giữ nguyên tới giai đoạn 11.
+> **Cập nhật sau giai đoạn 11:** `backend-go/` → `backend/`, `frontend-go/` → `frontend/`; code C#/Rust đã xoá. Bảng dưới giữ nguyên làm tài liệu đối chiếu.
 
 ---
 

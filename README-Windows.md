@@ -1,254 +1,217 @@
 # KernelStore — Hướng dẫn chạy trên Windows
 
-Hướng dẫn cho môi trường **Windows 10/11** (thay cho phần "Chạy trên NixOS" trong [README.md](./README.md)). Trên Windows không dùng `nix-shell` — bạn cài trực tiếp toolchain rồi chạy từng service.
+Hướng dẫn cho **Windows 10/11** (thay cho phần "Chạy trên NixOS" trong [README.md](./README.md)). Trên Windows không dùng Nix — bạn cài trực tiếp công cụ rồi chạy từng service.
 
 Ứng dụng cần **3 tiến trình chạy cùng lúc**, đúng thứ tự **Database → Backend → Frontend**:
 
-| Service    | Công nghệ                       | URL                     |
-|------------|---------------------------------|-------------------------|
-| Database   | PostgreSQL 16                   | `localhost:5433`        |
-| Backend    | ASP.NET Core 10 Web API         | `http://localhost:5000` |
-| Frontend   | Rust + Leptos + Trunk           | `http://localhost:8080` |
+| Service    | Công nghệ                          | URL                     |
+|------------|------------------------------------|-------------------------|
+| Database   | PostgreSQL 16                      | `localhost:5433`        |
+| Backend    | Go 1.27 (REST API + WebSocket)     | `http://localhost:5000` |
+| Frontend   | Go + templ + HTMX + Tailwind CSS   | `http://localhost:8080` |
 
-> ⚠️ **Cổng Postgres là `5433`** (khớp connection string `Port=5433` trong `backend\KernelStore.Api\appsettings.json`). Đừng nhầm sang `5432`.
+> ⚠️ **Cổng Postgres là `5433`** (mặc định của backend, biến `DB_PORT`). Đừng nhầm sang `5432`.
 
 ---
 
 ## 📑 Mục lục
 
 1. [Cài đặt công cụ (một lần)](#-bước-0--cài-đặt-công-cụ-một-lần)
-2. [Bước 1 — Database: chọn **Phương án A (Docker)** hoặc **Phương án B (PostgreSQL native)**](#-bước-1--database-chọn-1-trong-2-phương-án)
-   - [Phương án A — Docker Desktop (khuyến nghị)](#phương-án-a--docker-desktop-khuyến-nghị)
-   - [Phương án B — PostgreSQL native (không cần Docker)](#phương-án-b--postgresql-native-không-cần-docker)
-3. [Bước 2 — Backend](#-bước-2--backend-aspnet-core-10-api)
+2. [Bước 1 — Database: **Phương án A (Docker)** hoặc **Phương án B (PostgreSQL native)**](#-bước-1--database-chọn-1-trong-2-phương-án)
+3. [Bước 2 — Backend](#-bước-2--backend-go-api)
 4. [Bước 3 — Seed dữ liệu mẫu (tuỳ chọn)](#-bước-3--seed-dữ-liệu-mẫu-tuỳ-chọn)
-5. [Bước 4 — Frontend](#-bước-4--frontend-leptos--trunk)
+5. [Bước 4 — Frontend](#-bước-4--frontend-go--templ--htmx)
 6. [Tài khoản mặc định](#-tài-khoản-mặc-định) · [Chạy test](#-chạy-test-tuỳ-chọn) · [Xử lý sự cố](#-xử-lý-sự-cố-windows)
 
 ---
 
 ## 🔧 Bước 0 — Cài đặt công cụ (một lần)
 
-Khuyến nghị dùng **winget** (có sẵn trên Windows 10/11). Mở **PowerShell** rồi chạy phần bắt buộc:
+### 1. Go 1.27
+
+Tải bộ cài **`go1.27.1.windows-amd64.msi`** (hoặc bản vá 1.27.x mới hơn) tại **https://go.dev/dl/** rồi chạy, hoặc dùng winget:
 
 ```powershell
-# BẮT BUỘC cho mọi phương án
-winget install Microsoft.DotNet.SDK.10     # .NET SDK 10  (backend)
-winget install Rustlang.Rustup             # Rust toolchain (frontend)
+winget install GoLang.Go
 ```
 
-Rồi cài **DB engine tuỳ phương án bạn chọn ở Bước 1**:
+Bộ cài tự thêm `C:\Program Files\Go\bin` và `%USERPROFILE%\go\bin` vào `PATH`. **Đóng và mở lại PowerShell**, rồi kiểm tra:
 
 ```powershell
-# Nếu chọn Phương án A (Docker):
-winget install Docker.DockerDesktop
-
-# Nếu chọn Phương án B (PostgreSQL native):
-winget install PostgreSQL.PostgreSQL.16
+go version        # phải là go1.27.x — thấp hơn thì cài lại bản mới
 ```
 
-**Sau khi cài xong, đóng và mở lại PowerShell** (để `PATH` cập nhật), rồi thiết lập Rust cho frontend:
+### 2. templ (sinh code Go từ file `.templ`)
 
 ```powershell
-rustup default stable
-rustup target add wasm32-unknown-unknown   # build WASM cho Leptos
-cargo install trunk                        # dev server + bundler
+go install github.com/a-h/templ/cmd/templ@v0.3.1020
+templ version     # v0.3.1020
 ```
 
-Cuối cùng kiểm tra (mỗi lệnh phải in ra version):
+### 3. Tailwind CSS CLI (bản v3, khớp `frontend\tailwind.config.js`)
+
+Tải file **`tailwindcss-windows-x64.exe`** của bản **v3.4.17** tại
+https://github.com/tailwindlabs/tailwindcss/releases/tag/v3.4.17 , đổi tên thành **`tailwindcss.exe`** và chép vào `%USERPROFILE%\go\bin` (đã có trong `PATH`):
 
 ```powershell
-dotnet --version      # 10.x
-rustc --version
-trunk --version
+Invoke-WebRequest https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.17/tailwindcss-windows-x64.exe -OutFile "$env:USERPROFILE\go\bin\tailwindcss.exe"
+tailwindcss --help      # in ra "tailwindcss v3.4.17"
 ```
 
-> `cargo install trunk` biên dịch từ source nên hơi lâu (vài phút). Rust trên Windows cần **Visual Studio Build Tools** (C++) để có linker. Nếu `cargo` báo `link.exe not found`: `winget install Microsoft.VisualStudio.2022.BuildTools`, rồi trong Visual Studio Installer chọn workload **"Desktop development with C++"**.
+> Không dùng bản v4: cấu hình Tailwind của dự án là định dạng v3.
+
+### 4. Database engine (theo phương án ở Bước 1)
+
+```powershell
+winget install Docker.DockerDesktop          # Phương án A (Docker)
+winget install PostgreSQL.PostgreSQL.16      # Phương án B (PostgreSQL native)
+```
+
+### 5. (Tuỳ chọn) air — tự reload frontend khi sửa code
+
+```powershell
+go install github.com/air-verse/air@latest
+```
 
 <details>
 <summary><b>📥 Nguồn cài đặt chính thức (bấm để mở)</b></summary>
 
-Chỉ tải từ nhà phát hành **chính thức** — `winget install <ID>` lấy đúng từ các nguồn này. (ID đã đối chiếu với kho `winget-pkgs` của Microsoft.)
-
-| Công cụ | winget ID | Trang tải chính thức | Dùng cho |
+| Công cụ | Cách cài | Trang chính thức | Dùng cho |
 |---|---|---|---|
-| .NET SDK 10 | `Microsoft.DotNet.SDK.10` | https://dotnet.microsoft.com/download/dotnet/10.0 | Backend (bắt buộc) |
-| Rust (rustup) | `Rustlang.Rustup` | https://rustup.rs | Frontend (bắt buộc) |
-| Trunk | *(qua `cargo install trunk`)* | https://trunkrs.dev | Frontend (bắt buộc) |
-| Docker Desktop | `Docker.DockerDesktop` | https://www.docker.com/products/docker-desktop/ | **Phương án A** |
-| PostgreSQL 16 | `PostgreSQL.PostgreSQL.16` | https://www.postgresql.org/download/windows/ | **Phương án B** |
-| VS Build Tools 2022 | `Microsoft.VisualStudio.2022.BuildTools` | https://visualstudio.microsoft.com/downloads/ → *Build Tools* | Khi thiếu `link.exe` |
-| Git for Windows | `Git.Git` | https://git-scm.com/download/win | Chạy test `.sh` (tuỳ chọn) |
-| jq | `jqlang.jq` | https://jqlang.github.io/jq/download/ | Chạy test `.sh` (tuỳ chọn) |
+| Go 1.27 | `.msi` hoặc `winget install GoLang.Go` | https://go.dev/dl/ | Backend + frontend (bắt buộc) |
+| templ | `go install github.com/a-h/templ/cmd/templ@v0.3.1020` | https://templ.guide | Frontend (bắt buộc) |
+| Tailwind CSS CLI v3 | file `.exe` standalone | https://github.com/tailwindlabs/tailwindcss/releases | Frontend (bắt buộc) |
+| Docker Desktop | `winget install Docker.DockerDesktop` | https://www.docker.com/products/docker-desktop/ | **Phương án A** |
+| PostgreSQL 16 | `winget install PostgreSQL.PostgreSQL.16` | https://www.postgresql.org/download/windows/ | **Phương án B** |
+| air | `go install github.com/air-verse/air@latest` | https://github.com/air-verse/air | Hot reload (tuỳ chọn) |
+| Git for Windows | `winget install Git.Git` | https://git-scm.com/download/win | Chạy test `.sh` (tuỳ chọn) |
+| jq | `winget install jqlang.jq` | https://jqlang.github.io/jq/download/ | Chạy test `.sh` (tuỳ chọn) |
 
-> ⚠️ Chỉ dùng đúng các domain trên, tránh trang mirror bên thứ ba. Kiểm tra ID trước khi cài: `winget show <ID>`.
+> ⚠️ Chỉ tải từ các domain trên, tránh trang mirror bên thứ ba.
 
 </details>
+
+Không cần Visual Studio / C++ Build Tools: dự án build thuần Go, không dùng cgo.
 
 ---
 
 ## 🗄️ Bước 1 — Database (chọn 1 trong 2 phương án)
 
-Hai phương án **cho ra database y hệt nhau** — cùng db `kernelstore`, user `admin`, mật khẩu `admin123`, cùng cổng `5433`, cùng dữ liệu seed. Backend & Frontend (Bước 2–4) **giống nhau**, không phụ thuộc bạn chọn cách nào.
+Hai phương án **cho ra database y hệt nhau** — db `kernelstore`, user `admin`, mật khẩu `admin123`, cổng `5433`.
 
 | | **Phương án A — Docker** | **Phương án B — PostgreSQL native** |
 |---|---|---|
 | Cần cài | Docker Desktop | PostgreSQL 16 |
-| Ưu điểm | Có sẵn file `.bat` chạy tự động cả stack; không đụng cấu hình | Không cần Docker, nhẹ máy |
-| Phù hợp | Muốn nhanh, ít thao tác | Máy đã có/không muốn cài Docker |
-
-Chọn **một** trong hai phần dưới đây rồi làm theo, xong thì sang **Bước 2**.
+| Ưu điểm | Có sẵn `win-run-all.bat` chạy tự động cả stack | Không cần Docker, nhẹ máy |
 
 ---
 
 ### Phương án A — Docker Desktop (khuyến nghị)
 
-> Yêu cầu: đã `winget install Docker.DockerDesktop`, và **bật Docker Desktop** (đợi icon *Running*).
+> Yêu cầu: đã cài và **bật Docker Desktop** (đợi trạng thái *Running*).
 
-#### ⭐ Cách A1 — Tự động cả stack bằng `win-run-all.bat` (nhanh nhất)
+#### ⭐ Cách A1 — Tự động cả stack bằng `win-run-all.bat`
 
-File `win-run-all.bat` (ở thư mục gốc) làm **toàn bộ**: bật DB → đợi healthy → chạy Backend → chạy Frontend → **tự mở trình duyệt**. Chỉ chạy 1 file là xong, **không cần làm Bước 2–4**.
+`win-run-all.bat` làm **toàn bộ**: bật DB → đợi healthy → mở Backend → mở Frontend → **tự mở trình duyệt**. Chạy file này thì **bỏ qua Bước 2–4**.
 
-**Cách chạy — chọn 1:**
-- **Double-click** `win-run-all.bat` trong File Explorer, hoặc
-- Trong PowerShell:
-  ```powershell
-  cd C:\path\to\KernelStore
-  .\win-run-all.bat
-  ```
-
-**Màn hình sẽ lần lượt hiện:**
+- **Double-click** `win-run-all.bat`, hoặc trong PowerShell: `.\win-run-all.bat`
 
 ```text
 [1/5] Database (Docker)...              → bật Postgres
 [2/5] Doi PostgreSQL san sang...        → đợi DB healthy
-[3/5] Backend -> :5000                  → mở CỬA SỔ MỚI chạy backend
-[4/5] Doi Backend san sang...           → đợi backend build + lắng nghe :5000
-[5/5] Frontend -> :8080                 → mở CỬA SỔ MỚI chạy frontend
-Doi Frontend build xong...              → đợi trunk biên dịch WASM
+[3/5] Backend -> :5000                  → CỬA SỔ MỚI: go run ./cmd/api
+[4/5] Doi Backend san sang...           → đợi build + lắng nghe :5000
+[5/5] Frontend -> :8080                 → CỬA SỔ MỚI: win-frontend.bat (templ + tailwind + go run)
 Mo trinh duyet...                       → TỰ mở http://localhost:8080
 ```
 
-- Kết quả: **3 cửa sổ** (điều phối + Backend + Frontend) + trình duyệt tự bật.
-- **Lần đầu chờ lâu** (vài chục giây → vài phút) do phải build backend + biên dịch WASM — script đứng đợi là **bình thường**, không phải treo. Các lần sau nhanh hơn nhiều.
-- Trình duyệt lỗi `localhost`? Mở thủ công **`http://127.0.0.1:8080/`**.
-- **Tắt:** đóng/`Ctrl + C` 2 cửa sổ Backend & Frontend. DB vẫn chạy nền → `docker compose down` để tắt hẳn.
+- **Lần đầu chờ lâu hơn** vì Go tải thư viện và biên dịch — script đứng đợi là bình thường.
+- **Tắt:** `Ctrl + C` ở 2 cửa sổ Backend & Frontend. DB vẫn chạy nền → `docker compose down` để tắt hẳn.
 
-> Cảnh báo "Windows protected your PC" khi double-click → bấm **More info → Run anyway** (file `.bat` nội bộ dự án).
+> Cảnh báo "Windows protected your PC" khi double-click → **More info → Run anyway**.
 
-#### Cách A2 — Thủ công (hiểu từng bước)
+#### Cách A2 — Thủ công
 
 ```powershell
 cd C:\path\to\KernelStore
-docker compose up -d      # postgres:16 tại localhost:5433 (db/user/pass: kernelstore/admin/admin123)
-docker compose ps         # đợi cột STATUS = healthy
+docker compose up -d      # postgres:16 tại localhost:5433
+docker compose ps         # đợi STATUS = healthy
 ```
 
-`docker-compose.yml` dùng chung với Linux — **không cần chỉnh sửa**. Dữ liệu lưu ở volume `postgres_data`; muốn xoá sạch làm lại: `docker compose down -v`.
-
-Xong DB → sang **[Bước 2](#-bước-2--backend-aspnet-core-10-api)**.
-
-#### (Tuỳ chọn) Nạp sẵn dữ liệu mẫu từ `database.sql`
-
-File `database.sql` là bản dump **đã seed sẵn** (10 danh mục, 7 shop, 57 sản phẩm, admin + 7 seller), đồng bộ schema hiện tại. Nạp thẳng vào container (thay cho Bước 3):
+Nạp sẵn dữ liệu mẫu từ `database.sql` (tuỳ chọn, thay cho Bước 3):
 
 ```powershell
-type database.sql | docker exec -i kernelstore-postgres psql -U admin -d kernelstore
+Get-Content database.sql | docker exec -i kernelstore-postgres psql -U admin -d kernelstore
 ```
 
-File có `DROP ... IF EXISTS` ở đầu nên ghi đè an toàn.
-
-#### Các file `.bat` lẻ (Phương án A)
+#### Các file `.bat`
 
 | File | Việc |
 |------|------|
-| `win-run-all.bat` | Tự động cả stack (như Cách A1). |
+| `win-run-all.bat`  | Tự động cả stack (Cách A1) — cần Docker. |
 | `win-db.bat`       | Chỉ bật Database (Docker). |
-| `win-backend.bat`  | Chỉ chạy Backend (`:5000`). |
-| `win-frontend.bat` | Chỉ chạy Frontend (`:8080`). |
-| `win-seed.bat`     | Seed dữ liệu mẫu. |
+| `win-backend.bat`  | Chỉ chạy Backend (`go run ./cmd/api`, `:5000`). |
+| `win-frontend.bat` | Chỉ chạy Frontend (`templ generate` → tailwind → `go run ./cmd/web`, `:8080`). |
+| `win-seed.bat`     | Seed dữ liệu mẫu (`go run ./cmd/api seed`). |
 
-> `win-backend.bat` / `win-frontend.bat` / `win-seed.bat` chỉ gọi `dotnet`/`trunk` nên **dùng được cho cả Phương án B**; riêng `win-db.bat` / `win-run-all.bat` là Docker.
+`win-backend.bat`, `win-frontend.bat`, `win-seed.bat` dùng được cho cả Phương án B.
 
 ---
 
 ### Phương án B — PostgreSQL native (không cần Docker)
 
-> Yêu cầu: đã `winget install PostgreSQL.PostgreSQL.16`.
+#### B1. Cho Postgres nghe cổng `5433`
 
-#### B1. Cho Postgres nghe đúng cổng `5433`
-
-Trình cài hỏi mật khẩu superuser `postgres` — nhớ mật khẩu này. Sau khi cài, `psql` nằm ở `C:\Program Files\PostgreSQL\16\bin`; nếu `psql` không nhận lệnh, thêm thư mục đó vào `PATH` rồi mở lại PowerShell.
-
-Bản native mặc định nghe `5432`, còn dự án dùng `5433`. Cho khớp mà **không phải sửa code**:
+Bản native mặc định nghe `5432`. Sửa `port = 5432` → `port = 5433` rồi restart:
 
 ```powershell
-# sửa dòng  port = 5432  ->  port = 5433
 notepad "C:\Program Files\PostgreSQL\16\data\postgresql.conf"
-
-# restart service để áp dụng
 Restart-Service postgresql-x64-16
 ```
 
-> Không muốn đổi cổng Postgres? Thay vào đó sửa `Port=5433` → `Port=5432` trong `backend\KernelStore.Api\appsettings.json`. Chỉ chọn **một** — cổng Postgres và connection string phải trùng nhau.
+> Muốn giữ `5432`? Thay vào đó đặt biến môi trường khi chạy backend: `$env:DB_PORT = "5432"` (trong cùng cửa sổ PowerShell trước `go run`).
 
 #### B2. Tạo user + database
 
 ```powershell
-# -p 5433 vì đã cho Postgres nghe 5433 ở B1 (bỏ -p nếu bạn giữ 5432)
 psql -U postgres -p 5433 -c "CREATE USER admin WITH PASSWORD 'admin123' SUPERUSER;"
 psql -U postgres -p 5433 -c "CREATE DATABASE kernelstore OWNER admin;"
 ```
 
-Kiểm tra kết nối (phải in ra `1`):
+#### B3. Dữ liệu — chọn 1
 
-```powershell
-psql "host=localhost port=5433 dbname=kernelstore user=admin password=admin123" -tc "SELECT 1;"
-```
-
-#### B3. Đưa dữ liệu vào — chọn 1 trong 2
-
-- **Cách 1 — để backend tự tạo schema + seed:** bỏ trống DB, sang thẳng Bước 2 (backend tự migrate + tạo admin) rồi Bước 3 (seed). Đơn giản nhất.
-- **Cách 2 — nạp sẵn `database.sql`** (có ngay admin + 7 seller + 57 sản phẩm):
-  ```powershell
-  psql -U admin -p 5433 -d kernelstore -f database.sql
-  ```
-
-Xong DB → sang **[Bước 2](#-bước-2--backend-aspnet-core-10-api)**.
-
-> **Reset sạch DB (native):** `psql -U postgres -p 5433 -c "DROP DATABASE kernelstore;"` rồi làm lại B2 + B3.
+- **Để backend tự tạo schema:** sang thẳng Bước 2 (backend tự chạy migration + tạo admin), rồi Bước 3 (seed).
+- **Nạp sẵn `database.sql`:** `psql -U admin -p 5433 -d kernelstore -f database.sql`
 
 ---
 
-## ⚙️ Bước 2 — Backend (ASP.NET Core 10 API)
+## ⚙️ Bước 2 — Backend (Go API)
 
-> Đã làm ở Cách A1 (`win-run-all.bat`)? Backend đã chạy rồi — bỏ qua bước này.
-
-Mở **PowerShell mới** tại thư mục gốc:
+> Đã chạy `win-run-all.bat`? Bỏ qua bước này.
 
 ```powershell
-dotnet run --project backend\KernelStore.Api --urls http://localhost:5000
+cd C:\path\to\KernelStore\backend
+go run ./cmd/api
 ```
 
-- Khi start, seeder tự `Migrate` DB (chạy mọi migration, gồm `AddWarranty`) + tạo roles `Customer/Seller/Admin` + tài khoản admin.
-- Để cửa sổ này chạy (dừng bằng `Ctrl + C`). Đợi log **`Now listening on: http://localhost:5000`** trước khi thao tác frontend.
-- Kiểm tra nhanh (PowerShell khác): `curl http://localhost:5000/api/categories` phải trả JSON.
+(hoặc double-click `win-backend.bat`)
+
+- Khi khởi động: chạy migration + tạo roles `Customer/Seller/Admin` + tài khoản admin.
+- Đợi log **`Now listening on: http://localhost:5000`**. Kiểm tra: `curl http://localhost:5000/api/categories` trả JSON.
+- Cấu hình qua biến môi trường (`DB_PORT`, `DB_PASSWORD`, `JWT_SECRET`, `UPLOAD_DIR`, ...) — bảng đầy đủ ở [README.md](./README.md#3-backend-go-api). Ví dụ: `$env:DB_PORT = "5432"; go run ./cmd/api`.
 
 ---
 
 ## 🌱 Bước 3 — Seed dữ liệu mẫu (tuỳ chọn)
 
-> Bỏ qua nếu đã nạp `database.sql` (A2 / B3-Cách 2).
-
-Mở PowerShell mới ở thư mục gốc:
+> Bỏ qua nếu đã nạp `database.sql`.
 
 ```powershell
-dotnet run --project backend\KernelStore.Api --no-launch-profile seed
+cd C:\path\to\KernelStore\backend
+go run ./cmd/api seed
 ```
 
-Hoặc double-click **`win-seed.bat`**. Tạo **10 danh mục, 7 shop (Approved) + 57 sản phẩm** (kèm ảnh). Idempotent — chạy lại báo `already present — skipping`.
-
-Ngoài nhóm điện tử cơ bản, catalog demo còn trải theo chuyên ngành CNTT:
+(hoặc `win-seed.bat`) — tạo **10 danh mục, 7 shop (Approved) + 57 sản phẩm** kèm ảnh. Chạy lại báo `already present — skipping`.
 
 | Chuyên ngành | Shop | Ví dụ sản phẩm |
 |---|---|---|
@@ -258,30 +221,32 @@ Ngoài nhóm điện tử cơ bản, catalog demo còn trải theo chuyên ngàn
 | SysAdmin & DevOps | OpsCenter | UniFi Dream Machine, 1U Server, Synology NAS |
 | Developer Tools | DevTools Hub | Keychron Q1, màn 4K, Stream Deck, license JetBrains |
 
-> Ảnh sản phẩm ở `backend\KernelStore.Api\wwwroot\uploads\`, phục vụ tại `http://localhost:5000/uploads/<slug>.jpg`.
+Ảnh ở `backend\uploads\`, phục vụ tại `http://localhost:5000/uploads/<slug>.jpg`.
 
 ---
 
-## 🖥️ Bước 4 — Frontend (Leptos + Trunk)
+## 🖥️ Bước 4 — Frontend (Go + templ + HTMX)
 
-> Đã làm ở Cách A1 (`win-run-all.bat`)? Frontend đã chạy rồi — bỏ qua bước này.
+> Đã chạy `win-run-all.bat`? Bỏ qua bước này.
 
-Mở **PowerShell mới**, vào thư mục `frontend`:
+Double-click **`win-frontend.bat`**, hoặc:
 
 ```powershell
 cd C:\path\to\KernelStore\frontend
-trunk serve --port 8080      # build WASM + tailwind, hot-reload
+templ generate
+tailwindcss -c tailwind.config.js -i static/css/input.css -o static/css/app.css --minify
+go run ./cmd/web
 ```
 
-Mở trình duyệt tại **`http://localhost:8080`**. Lần build đầu tải crate + biên dịch WASM nên hơi lâu.
+Mở **`http://localhost:8080`**. Sửa file `.templ`/`.css` thì chạy lại 3 lệnh trên (hoặc dùng `air`, xem [README.md](./README.md#5-frontend-go--templ--htmx)).
 
-> `localhost:8080` không mở được (thường do `localhost` trỏ IPv6 `::1` còn trunk nghe IPv4)? Thử **`http://127.0.0.1:8080/`** — CORS đã cho phép cả origin này. Muốn trunk nghe mọi địa chỉ: `trunk serve --address 0.0.0.0 --port 8080`.
+> `localhost:8080` không mở được? Thử **`http://127.0.0.1:8080/`** — backend cho phép cả hai origin.
 
 ---
 
 ## 👤 Tài khoản mặc định
 
-Admin có sẵn ngay khi backend start. 7 seller chỉ có sau khi **seed** (Bước 3) hoặc **nạp `database.sql`**. Mật khẩu seller đều là `Seller@12345`.
+Admin có sẵn khi backend khởi động. 7 seller chỉ có sau khi **seed** (Bước 3) hoặc **nạp `database.sql`**.
 
 | Vai trò   | Email               | Mật khẩu       | Shop            |
 |-----------|---------------------|----------------|-----------------|
@@ -299,7 +264,7 @@ Admin có sẵn ngay khi backend start. 7 seller chỉ có sau khi **seed** (Bư
 
 ## ✅ Chạy test (tuỳ chọn)
 
-Các file `test_*.sh` là script bash. Cần **Git Bash** (đi kèm Git) hoặc **WSL**, có `jq` + `curl` trong PATH, và API đang chạy ở `:5000`. Trong **Git Bash**:
+Các file `test_*.sh` là script bash: cần **Git Bash** (hoặc WSL) có `jq`, `curl` và `go` trong `PATH`, backend đang chạy ở `:5000`, đã seed dữ liệu mẫu. Trong **Git Bash**:
 
 ```bash
 ./test_phase1_api.sh     # Auth               (21 checks)
@@ -308,31 +273,33 @@ Các file `test_*.sh` là script bash. Cần **Git Bash** (đi kèm Git) hoặc 
 ./test_phase4_api.sh     # Cart & Checkout    (22 checks)
 ./test_phase5_api.sh     # Review & Rating    (15 checks)
 ./test_phase6_api.sh     # Admin Panel        (32 checks)
-./test_chat_api.sh       # Chat realtime      (27 checks)
+./test_chat_api.sh       # Chat realtime      (27 checks, tự build test/wsclient bằng go)
 ./test_full_api.sh       # End-to-end         (52 checks)
 ./test_extra_api.sh      # Các chức năng còn lại (66 checks)
+./test_warranty_api.sh   # Bảo hành           (23 checks)
 ```
 
-> Không có Git Bash/WSL thì bỏ qua — test không bắt buộc để chạy ứng dụng.
+> `test_chat_api.sh` ghi log vào `/tmp/opencode/` — trong Git Bash tạo trước: `mkdir -p /tmp/opencode`.
+
+Kết quả verify gần nhất (2026-09-29): **276/276 PASS** trên 9 bộ test + bảo hành 23/23 (chi tiết trong [README.md](./README.md#kết-quả-test-gần-nhất-2026-09-29-bản-go)).
 
 ### Build một lần (không chạy dev server)
 
 ```powershell
-dotnet build backend\KernelStore.Api      # backend
-cd frontend; trunk build                  # frontend → frontend\dist\
+cd backend;  go build -o kernelstore-api.exe ./cmd/api
+cd ..\frontend;  templ generate;  go build -o kernelstore-web.exe ./cmd/web
 ```
 
 ---
 
 ## 🩺 Xử lý sự cố (Windows)
 
-- **`NetworkError when attempting to fetch resource` khi đăng ký/đăng nhập** → **backend chưa chạy** ở `:5000`. Chạy lại Bước 2 và đợi log `Now listening on: http://localhost:5000`. Kiểm tra: `curl http://localhost:5000/api/categories` phải trả JSON.
-- **`link.exe`/`cc` không tìm thấy khi build frontend** → thiếu C++ Build Tools (xem Bước 0).
-- **`dotnet`/`trunk`/`cargo` không nhận lệnh** → chưa mở lại terminal sau khi cài. Đóng/mở lại PowerShell.
-- **`error: target 'wasm32-unknown-unknown' not found`** → chạy `rustup target add wasm32-unknown-unknown`.
-- **`Cannot connect to the Docker daemon`** (Phương án A) → chưa bật Docker Desktop hoặc chưa *Running*.
-- **Backend không nối được DB** → kiểm tra DB đang chạy và connection string trong `appsettings.json` là `Host=localhost;Port=5433;...`. Nếu bạn đổi cổng, sửa `Port=` cho khớp.
-- **`localhost:8080` không mở được** → thử **`http://127.0.0.1:8080/`** (localhost trỏ IPv6 còn trunk nghe IPv4). Cả hai origin đều được CORS cho phép.
-- **CORS bị chặn** → frontend phải chạy đúng `http://localhost:8080` hoặc `http://127.0.0.1:8080`.
-- **Port bị chiếm (5000/5433/8080)** → đổi cổng ở lệnh tương ứng, hoặc tìm tiến trình: `netstat -ano | findstr :5000`.
+- **`go`/`templ`/`tailwindcss` không nhận lệnh** → chưa mở lại terminal sau khi cài, hoặc `%USERPROFILE%\go\bin` chưa có trong `PATH`.
+- **`go: go.mod requires go >= 1.27`** → Go đang cài thấp hơn 1.27. Cài lại bản mới từ https://go.dev/dl/ và kiểm tra `go version`.
+- **Frontend lỗi build `undefined: views.XxxPage`** hoặc sửa `.templ` mà giao diện không đổi → chưa chạy `templ generate` trong thư mục `frontend`.
+- **Trang hiện nhưng mất style** → chưa build CSS (lệnh `tailwindcss ...` ở Bước 4), hoặc đang dùng Tailwind v4 thay vì v3.
+- **Trang báo `network error: ... connection refused`** → backend chưa chạy ở `:5000` (Bước 2).
+- **`Cannot connect to the Docker daemon`** (Phương án A) → chưa bật Docker Desktop.
+- **Backend không nối được DB** → DB chưa chạy, hoặc cổng không khớp: mặc định `5433`, đổi bằng `$env:DB_PORT`.
+- **Port bị chiếm (5000/5433/8080)** → tìm tiến trình: `netstat -ano | findstr :8080`. Đổi cổng frontend: `$env:WEB_ADDR = ":8081"`.
 - **Reset sạch DB** → Docker: `docker compose down -v` rồi `up -d`; native: `DROP DATABASE kernelstore;` rồi tạo lại. Sau đó seed lại hoặc nạp `database.sql`.
