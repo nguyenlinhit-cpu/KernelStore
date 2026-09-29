@@ -1,0 +1,284 @@
+package views
+
+import (
+	"strconv"
+	"strings"
+
+	"github.com/KernelStore/frontend/internal/client"
+)
+
+// Trạng thái seller được chuyển tới qua dropdown ("Delivered" do khách xác nhận).
+var sellerOrderStatuses = []string{"Pending", "Confirmed", "Processing", "Shipped", "Cancelled"}
+
+templ OrdersPage(list []client.Order, errMsg string) {
+	<div class="max-w-4xl mx-auto p-6">
+		<p class="term-muted text-sm mb-1">$ kernelstore --orders</p>
+		<h1 class="text-lg font-bold mb-4">{ t(ctx, "orders.title") }</h1>
+		if errMsg != "" {
+			<p class="term-error text-sm mb-3">{ "[ERROR] " + errMsg }</p>
+			<p class="term-error">{ t(ctx, "orders.load_failed") }</p>
+		} else if len(list) == 0 {
+			<div class="term-box p-8 text-center">
+				<p class="term-muted text-sm mb-4">{ t(ctx, "orders.none") }</p>
+				<a href="/products" class="term-btn inline-block px-4 py-2 text-sm">{ t(ctx, "orders.browse") }</a>
+			</div>
+		} else {
+			<div class="space-y-2">
+				for i := range list {
+					@OrderRow(&list[i])
+				}
+			</div>
+		}
+	</div>
+}
+
+// OrderRow: một dòng đơn (dùng cả ở trang seller → sales).
+templ OrderRow(o *client.Order) {
+	<a href={ templ.SafeURL("/orders/" + o.ID) } class="term-row block p-3 hover:term-active">
+		<div class="flex items-center justify-between gap-3">
+			<div class="min-w-0">
+				<span class="text-[var(--fg-primary)] text-sm font-bold">{ o.OrderCode }</span>
+				<span class="term-muted text-xs ml-2">{ shortDate(o.CreatedAt) }</span>
+			</div>
+			<span class={ "text-xs " + orderStatusClass(o.Status) }>{ o.Status }</span>
+		</div>
+		<div class="flex items-center justify-between gap-3 mt-1 text-xs term-muted">
+			<span>{ itoa(o.ItemCount) + " " + t(ctx, "common.items") }</span>
+			<span class="text-[var(--fg-primary)]">{ money(o.TotalAmount) }</span>
+		</div>
+	</a>
+}
+
+templ OrderDetailPage(o *client.Order) {
+	<div class="max-w-3xl mx-auto p-6">
+		<a href="/orders" class="term-muted text-xs hover:underline">{ t(ctx, "orders.back") }</a>
+		@OrderDetailSection(o, "")
+	</div>
+}
+
+templ OrderPanic(code, title, detail string) {
+	<div class="max-w-3xl mx-auto p-6">
+		<a href="/orders" class="term-muted text-xs hover:underline">{ t(ctx, "orders.back") }</a>
+		@KernelPanic(code, title, detail, "/orders", t(ctx, "orders.back"))
+	</div>
+}
+
+// OrderDetailSection: chi tiết + các khung hành động theo vai trò/trạng thái.
+// statusMsg là dòng thông báo của khung đổi trạng thái (seller/admin).
+templ OrderDetailSection(o *client.Order, statusMsg string) {
+	{{ isCustomer := userRole(ctx) == "Customer" }}
+	{{ base := "/x/orders/" + o.ID }}
+	<div id="order-detail" hx-target="this" hx-swap="outerHTML" hx-sync="this:drop">
+		@OrderDetailView(o, isCustomer && o.Status == "Delivered", isCustomer && o.Status == "Delivered")
+		if isCustomer && o.Status == "Shipped" {
+			@orderActionBox(t(ctx, "orders.receipt"), t(ctx, "orders.receipt_hint"), base+"/confirm-received", "term-btn px-4 py-1.5 text-sm", t(ctx, "orders.received"), t(ctx, "orders.confirming"))
+		}
+		if isCustomer && (o.Status == "Pending" || o.Status == "Confirmed" || o.Status == "Processing") {
+			@orderActionBox(t(ctx, "orders.cancel_h"), t(ctx, "orders.cancel_hint"), base+"/cancel", "term-btn px-4 py-1.5 text-sm term-error", t(ctx, "orders.cancel_btn"), t(ctx, "orders.cancelling"))
+		}
+		if isCustomer && o.Status == "Delivered" {
+			@orderActionBox(t(ctx, "orders.return_h"), t(ctx, "orders.return_hint"), base+"/return", "term-btn px-4 py-1.5 text-sm", t(ctx, "orders.return_btn"), t(ctx, "orders.sending"))
+		}
+		if o.CanManage && o.Status == "ReturnRequested" {
+			<div class="term-box p-4 mt-4">
+				<p class="term-muted text-xs mb-2">{ t(ctx, "orders.resolve_h") }</p>
+				<p class="text-sm mb-3">{ t(ctx, "orders.resolve_hint") }</p>
+				<div class="flex items-center gap-2 flex-wrap">
+					<button class="term-btn px-4 py-1.5 text-sm" hx-post={ base + "/return/approve" } hx-disabled-elt="this">
+						@BusyLabel(t(ctx, "orders.approve_return"), "...")
+					</button>
+					<button class="term-btn px-4 py-1.5 text-sm term-error" hx-post={ base + "/return/reject" } hx-disabled-elt="this">{ t(ctx, "orders.reject_return") }</button>
+				</div>
+			</div>
+		}
+		if o.CanManage {
+			<form class="term-box p-4 mt-4" hx-post={ base + "/status" } hx-disabled-elt="find button">
+				<p class="term-muted text-xs mb-2">{ t(ctx, "orders.manage_h") }</p>
+				if o.Status == "Delivered" || o.Status == "Cancelled" || o.Status == "ReturnRequested" || o.Status == "Returned" {
+					<p class="term-muted text-sm">{ t(ctx, "orders.finalized") }</p>
+				} else {
+					<div class="flex items-center gap-2 flex-wrap">
+						<select name="status" class="term-input px-3 py-1.5 text-sm">
+							for _, s := range sellerOrderStatuses {
+								<option value={ s } selected?={ s == o.Status }>{ s }</option>
+							}
+						</select>
+						<button type="submit" class="term-btn px-4 py-1.5 text-sm">
+							@BusyLabel(t(ctx, "orders.update_status"), t(ctx, "orders.updating"))
+						</button>
+					</div>
+				}
+				if statusMsg != "" {
+					<p class="term-warn text-xs mt-2">{ statusMsg }</p>
+				}
+			</form>
+		}
+	</div>
+}
+
+templ orderActionBox(heading, hint, url, btnClass, label, busy string) {
+	<div class="term-box p-4 mt-4">
+		<p class="term-muted text-xs mb-2">{ heading }</p>
+		<p class="text-sm mb-3">{ hint }</p>
+		<button class={ btnClass } hx-post={ url } hx-disabled-elt="this">
+			@BusyLabel(label, busy)
+		</button>
+	</div>
+}
+
+templ OrderDetailView(o *client.Order, canReview, canWarranty bool) {
+	<div class="mt-4">
+		<div class="flex items-center justify-between gap-3 mb-4">
+			<div>
+				<h1 class="text-lg font-bold text-[var(--fg-primary)]">{ o.OrderCode }</h1>
+				<p class="term-muted text-xs">{ shortDate(o.CreatedAt) }</p>
+			</div>
+			<span class={ "text-sm " + orderStatusClass(o.Status) }>{ o.Status }</span>
+		</div>
+		<div class="term-box overflow-hidden">
+			<div class="grid grid-cols-[1fr_auto_auto] gap-3 px-4 py-2 text-xs term-muted border-b border-[var(--border)]">
+				<span>{ t(ctx, "orders.col_product") }</span>
+				<span class="text-center w-16">{ t(ctx, "orders.col_qty") }</span>
+				<span class="text-right w-24">{ t(ctx, "orders.col_total") }</span>
+			</div>
+			for _, item := range o.Items {
+				<div class="border-b border-[var(--border)] last:border-0">
+					<div class="grid grid-cols-[1fr_auto_auto] gap-3 px-4 py-3 items-center">
+						<div class="flex items-center gap-3 min-w-0">
+							<div class="term-box w-12 h-12 shrink-0 overflow-hidden flex items-center justify-center bg-[var(--bg-tertiary)]">
+								if deref(item.ImageUrl) == "" {
+									<span class="term-muted text-lg">[ ]</span>
+								} else {
+									<img src={ deref(item.ImageUrl) } class="w-full h-full object-cover"/>
+								}
+							</div>
+							<div class="min-w-0">
+								<a href={ templ.SafeURL("/products/" + item.ProductSlug) } class="text-sm text-[var(--fg-primary)] hover:underline truncate block">{ item.ProductName }</a>
+								<div class="text-xs term-muted">
+									{ money(item.UnitPrice) }
+									if item.ShopName != nil {
+										{ " · " + *item.ShopName }
+									}
+								</div>
+							</div>
+						</div>
+						<span class="text-center w-16 text-sm">{ itoa(item.Quantity) }</span>
+						<span class="text-right w-24 text-sm text-[var(--fg-primary)]">{ money(item.TotalPrice) }</span>
+					</div>
+					if canReview {
+						@ReviewForm(item.ProductID, item.ProductName, "5", "", "", false)
+					}
+					if canWarranty {
+						@WarrantyForm(item.ID, item.ProductName, WarrantyFormState{})
+					}
+				</div>
+			}
+		</div>
+		<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+			<div class="term-sub p-4">
+				<p class="term-muted text-xs mb-2">{ t(ctx, "orders.ship_to") }</p>
+				<p class="text-sm text-[var(--fg-primary)]">{ o.Address.FullName }</p>
+				<p class="text-sm term-muted">{ o.Address.Phone }</p>
+				<p class="text-sm term-muted">{ addressLine(o.Address) }</p>
+				if o.Note != "" {
+					<p class="text-xs term-muted mt-2">{ t(ctx, "orders.note") + o.Note }</p>
+				}
+			</div>
+			<div class="term-sub p-4">
+				<div class="flex justify-between text-sm mb-1">
+					<span class="term-muted">{ t(ctx, "orders.items") }</span>
+					<span>{ itoa(o.ItemCount) }</span>
+				</div>
+				<div class="flex justify-between text-sm mb-1">
+					<span class="term-muted">{ t(ctx, "orders.shipping") }</span>
+					<span>{ money(o.ShippingFee) }</span>
+				</div>
+				<div class="flex justify-between text-base border-t border-[var(--border)] pt-2 mt-2">
+					<span class="term-muted">{ t(ctx, "orders.total") }</span>
+					<span class="text-[var(--fg-primary)] font-bold">{ money(o.TotalAmount) }</span>
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
+// ReviewForm: form đánh giá cho từng sản phẩm của đơn đã nhận; done = đã gửi xong.
+templ ReviewForm(productID, productName, rating, comment, msg string, done bool) {
+	<div class="px-4 pb-3" hx-target="this" hx-swap="outerHTML">
+		if done {
+			<p class="term-info text-xs">{ msg }</p>
+		} else {
+			<form class="term-sub p-3" hx-post="/x/reviews" hx-disabled-elt="find button[type=submit]" data-stars>
+				<input type="hidden" name="productId" value={ productID }/>
+				<input type="hidden" name="productName" value={ productName }/>
+				<input type="hidden" name="rating" value={ rating } data-stars-value/>
+				<p class="term-muted text-xs mb-2">{ t(ctx, "orders.review_prefix") + productName }</p>
+				<div class="flex items-center gap-1 mb-2">
+					for n := 1; n <= 5; n++ {
+						<button type="button" class="term-warn text-lg leading-none" data-star={ itoa(n) }>{ starGlyph(n, rating) }</button>
+					}
+					<span class="term-muted text-xs ml-2" data-stars-label>{ rating + "/5" }</span>
+				</div>
+				<textarea name="comment" class="term-input w-full px-3 py-2 text-sm mb-2" rows="2" placeholder={ t(ctx, "orders.review_ph") }>{ comment }</textarea>
+				<div class="flex items-center gap-3">
+					<button type="submit" class="term-btn px-4 py-1.5 text-sm">
+						@BusyLabel(t(ctx, "orders.submit_review"), t(ctx, "orders.submitting"))
+					</button>
+					if msg != "" {
+						<span class="term-warn text-xs">{ msg }</span>
+					}
+				</div>
+			</form>
+		}
+	</div>
+}
+
+// WarrantyFormState: trạng thái form yêu cầu bảo hành trong trang đơn hàng.
+type WarrantyFormState struct {
+	Open                          bool
+	Description, ImageUrl, Msg    string
+	Done                          bool
+}
+
+templ WarrantyForm(detailID, productName string, s WarrantyFormState) {
+	<div class="px-4 pb-3" hx-target="this" hx-swap="outerHTML">
+		if s.Done {
+			<p class="term-info text-xs">{ s.Msg }</p>
+		} else {
+			<button type="button" class={ "term-btn px-3 py-1 text-xs", templ.KV("hidden", s.Open) } data-open-next>{ t(ctx, "warranty.request_btn") }</button>
+			<form class={ "term-sub p-3", templ.KV("hidden", !s.Open) } hx-post="/x/warranty" hx-disabled-elt="find button[type=submit]">
+				<input type="hidden" name="orderDetailId" value={ detailID }/>
+				<input type="hidden" name="productName" value={ productName }/>
+				<p class="term-muted text-xs mb-2">{ t(ctx, "warranty.request_prefix") + productName }</p>
+				<textarea name="description" class="term-input w-full px-3 py-2 text-sm mb-2" rows="2" placeholder={ t(ctx, "warranty.desc_ph") }>{ s.Description }</textarea>
+				<input name="imageUrl" class="term-input w-full px-3 py-2 text-sm mb-2" placeholder={ t(ctx, "warranty.image_ph") } value={ s.ImageUrl }/>
+				<div class="flex items-center gap-3">
+					<button type="submit" class="term-btn px-4 py-1.5 text-sm">
+						@BusyLabel(t(ctx, "warranty.send"), t(ctx, "orders.submitting"))
+					</button>
+					<button type="button" class="term-btn px-3 py-1.5 text-sm" data-close-form>{ t(ctx, "common.cancel") }</button>
+					if s.Msg != "" {
+						<span class="term-warn text-xs">{ s.Msg }</span>
+					}
+				</div>
+			</form>
+		}
+	</div>
+}
+
+func addressLine(a client.OrderAddress) string {
+	var parts []string
+	for _, s := range []string{a.Street, a.Ward, a.District, a.City} {
+		if s != "" {
+			parts = append(parts, s)
+		}
+	}
+	return strings.Join(parts, ", ")
+}
+
+func starGlyph(n int, rating string) string {
+	if r, _ := strconv.Atoi(rating); r >= n {
+		return "★"
+	}
+	return "☆"
+}

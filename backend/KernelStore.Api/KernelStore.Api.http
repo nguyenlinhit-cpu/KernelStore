@@ -1,6 +1,0 @@
-@KernelStore.Api_HostAddress = http://localhost:5186
-
-GET {{KernelStore.Api_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###

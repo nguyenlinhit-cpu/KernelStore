@@ -1,0 +1,196 @@
+package views
+
+import "github.com/KernelStore/frontend/internal/client"
+
+var warrantyStatusFilters = []string{"", "Pending", "Approved", "Processing", "Completed", "Rejected"}
+
+func warrantyStatusClass(status string) string {
+	switch status {
+	case "Completed", "Approved":
+		return "term-info"
+	case "Rejected", "Cancelled":
+		return "term-error"
+	case "Pending", "Processing":
+		return "term-warn"
+	default:
+		return "term-muted"
+	}
+}
+
+func warrantyStatusLabel(status string) string {
+	switch status {
+	case "Approved":
+		return "warranty.st.approved"
+	case "Rejected":
+		return "warranty.st.rejected"
+	case "Processing":
+		return "warranty.st.processing"
+	case "Completed":
+		return "warranty.st.completed"
+	case "Cancelled":
+		return "warranty.st.cancelled"
+	default:
+		return "warranty.st.pending"
+	}
+}
+
+func warrantyResolutionLabel(res string) string {
+	switch res {
+	case "Repair":
+		return "warranty.res.repair"
+	case "Replace":
+		return "warranty.res.replace"
+	case "Refund":
+		return "warranty.res.refund"
+	default:
+		return "warranty.res.none"
+	}
+}
+
+templ WarrantyPage(list []client.WarrantyClaim, errMsg string) {
+	<div class="max-w-3xl mx-auto p-6">
+		<p class="term-muted text-sm mb-1">$ kernelstore --warranty</p>
+		<h1 class="text-lg font-bold mb-4">{ t(ctx, "warranty.title") }</h1>
+		@ClaimList(list, errMsg, false, "")
+	</div>
+}
+
+templ WarrantyManagePage(list []client.WarrantyClaim, errMsg, filter string) {
+	<div class="max-w-3xl mx-auto p-6">
+		<p class="term-muted text-sm mb-1">$ kernelstore --warranty --manage</p>
+		<h1 class="text-lg font-bold mb-4">{ t(ctx, "warranty.manage_title") }</h1>
+		<div class="flex flex-wrap gap-1.5 mb-4 text-xs">
+			for _, s := range warrantyStatusFilters {
+				<a
+					href={ templ.SafeURL(warrantyFilterURL(s)) }
+					class={ "term-menu-item px-2 py-0.5", templ.KV("term-active", filter == s) }
+				>
+					if s == "" {
+						{ t(ctx, "warranty.filter_all") }
+					} else {
+						{ t(ctx, warrantyStatusLabel(s)) }
+					}
+				</a>
+			}
+		</div>
+		@ClaimList(list, errMsg, true, filter)
+	</div>
+}
+
+// ClaimList: danh sách yêu cầu, được thay mới sau mỗi hành động.
+templ ClaimList(list []client.WarrantyClaim, errMsg string, manage bool, filter string) {
+	<div id="claims" hx-target="this" hx-swap="outerHTML" hx-sync="this:drop">
+		if errMsg != "" {
+			<p class="term-error text-sm mb-3">{ "[ERROR] " + errMsg }</p>
+		} else if len(list) == 0 {
+			<div class="term-box p-8 text-center">
+				if manage {
+					<p class="term-muted text-sm">{ t(ctx, "warranty.none_shop") }</p>
+				} else {
+					<p class="term-muted text-sm">{ t(ctx, "warranty.none") }</p>
+				}
+			</div>
+		} else {
+			<div class="space-y-3">
+				for i := range list {
+					@ClaimCard(&list[i], manage, filter)
+				}
+			</div>
+		}
+	</div>
+}
+
+templ ClaimCard(c *client.WarrantyClaim, manage bool, filter string) {
+	{{ img := deref(c.ProductImageUrl) }}
+	{{ vals := jsonAttr(map[string]string{"manage": boolStr(manage), "filter": filter}) }}
+	<div class="term-box p-4">
+		<div class="flex items-center justify-between gap-3 mb-2">
+			<span class="text-[var(--fg-primary)] text-sm font-bold">{ c.ClaimCode }</span>
+			<span class={ "text-xs " + warrantyStatusClass(c.Status) }>{ t(ctx, warrantyStatusLabel(c.Status)) }</span>
+		</div>
+		<div class="flex items-start gap-3">
+			<div class="term-box w-12 h-12 shrink-0 overflow-hidden flex items-center justify-center bg-[var(--bg-tertiary)]">
+				if img == "" {
+					<span class="term-muted text-lg">[ ]</span>
+				} else {
+					<img src={ img } class="w-full h-full object-cover"/>
+				}
+			</div>
+			<div class="min-w-0 flex-1">
+				<a href={ templ.SafeURL("/products/" + c.ProductSlug) } class="text-sm text-[var(--fg-primary)] hover:underline">{ c.ProductName }</a>
+				<p class="text-xs term-muted">{ c.OrderCode + " · x" + itoa(c.Quantity) }</p>
+				if manage {
+					<p class="text-xs term-muted">{ t(ctx, "warranty.by") + c.UserName }</p>
+				}
+			</div>
+		</div>
+		<p class="text-sm mt-2 whitespace-pre-wrap">{ c.Description }</p>
+		if c.WarrantyExpiresAt != nil {
+			<p class="text-xs term-muted mt-1">{ t(ctx, "warranty.expires") + shortDate(*c.WarrantyExpiresAt) }</p>
+		}
+		if c.Resolution != "None" {
+			<p class="text-xs term-info mt-1">{ t(ctx, "warranty.resolution") }{ t(ctx, warrantyResolutionLabel(c.Resolution)) }</p>
+		}
+		if c.ResolutionNote != "" {
+			<p class="text-xs term-muted mt-1">{ t(ctx, "warranty.note_prefix") + c.ResolutionNote }</p>
+		}
+		<p class="text-xs term-muted mt-1">{ shortDate(c.CreatedAt) }</p>
+		if !manage && c.Status == "Pending" {
+			<div class="mt-3">
+				<button class="term-btn px-3 py-1 text-xs" hx-post={ "/x/warranty/" + c.ID + "/cancel" } hx-vals={ vals } hx-target="#claims" hx-disabled-elt="this">{ t(ctx, "warranty.cancel_btn") }</button>
+			</div>
+		}
+		if manage {
+			@ManageActions(c, vals)
+		}
+	</div>
+}
+
+// ManageActions: nút xử lý của seller/admin theo trạng thái yêu cầu.
+templ ManageActions(c *client.WarrantyClaim, vals string) {
+	{{ showApprove := c.Status == "Pending" }}
+	{{ showProcess := c.Status == "Approved" }}
+	{{ showComplete := c.Status == "Approved" || c.Status == "Processing" }}
+	{{ base := "/x/warranty/" + c.ID }}
+	<form class="mt-3 border-t border-[var(--border)] pt-3" hx-vals={ vals } hx-target="#claims" hx-disabled-elt="find button">
+		if showApprove {
+			<div class="flex flex-wrap items-center gap-2 mb-2">
+				<span class="term-muted text-xs">{ t(ctx, "warranty.resolution_pick") }</span>
+				<select name="resolution" class="term-input px-2 py-1 text-xs">
+					<option value="Repair">{ t(ctx, "warranty.res.repair") }</option>
+					<option value="Replace">{ t(ctx, "warranty.res.replace") }</option>
+					<option value="Refund">{ t(ctx, "warranty.res.refund") }</option>
+				</select>
+			</div>
+		}
+		if showApprove || showComplete {
+			<input name="note" class="term-input w-full px-3 py-2 text-xs mb-2" placeholder={ t(ctx, "warranty.note_ph") }/>
+		}
+		<div class="flex flex-wrap gap-2">
+			if showApprove {
+				<button type="button" class="term-btn px-3 py-1 text-xs" hx-post={ base + "/approve" } hx-include="closest form">{ t(ctx, "warranty.approve_btn") }</button>
+				<button type="button" class="term-btn px-3 py-1 text-xs" hx-post={ base + "/reject" } hx-include="closest form">{ t(ctx, "warranty.reject_btn") }</button>
+			}
+			if showProcess {
+				<button type="button" class="term-btn px-3 py-1 text-xs" hx-post={ base + "/process" } hx-include="closest form">{ t(ctx, "warranty.process_btn") }</button>
+			}
+			if showComplete {
+				<button type="button" class="term-btn px-3 py-1 text-xs" hx-post={ base + "/complete" } hx-include="closest form">{ t(ctx, "warranty.complete_btn") }</button>
+			}
+		</div>
+	</form>
+}
+
+func warrantyFilterURL(s string) string {
+	if s == "" {
+		return "/warranty/manage"
+	}
+	return "/warranty/manage?status=" + s
+}
+
+func boolStr(b bool) string {
+	if b {
+		return "1"
+	}
+	return ""
+}

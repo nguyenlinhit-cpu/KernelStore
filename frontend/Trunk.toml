@@ -1,9 +1,0 @@
-[build]
-target = "index.html"
-dist = "dist"
-
-[tools]
-tailwind = { version = "3.4.14" }
-
-[watch]
-ignore = ["dist"]

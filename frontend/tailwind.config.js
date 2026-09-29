@@ -1,8 +1,8 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: ["./index.html", "./src/**/*.{rs,html}"],
-  // `class:invisible` toggles in .rs aren't detected by the content scanner,
-  // so the utility must be safelisted or error labels never hide.
+  content: ["./internal/**/*.templ", "./internal/**/*.go", "./static/js/app.js"],
+  // Class chỉ được bật/tắt bằng JS/điều kiện có thể không bị quét thấy,
+  // nên safelist để dòng lỗi luôn ẩn được.
   safelist: ["invisible"],
   theme: {
     extend: {

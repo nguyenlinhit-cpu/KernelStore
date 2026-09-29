@@ -1,10 +1,6 @@
-# .NET build output
-**/bin/
-**/obj/
-
-# Rust / Trunk / WASM build output
-frontend/target/
-frontend/dist/
+# Go build output
+frontend/tmp/
+test/wsclient/wsclient
 
 # Local Postgres data (khi chạy Postgres không dùng Docker)
 .pgdata/
@@ -22,7 +18,3 @@ frontend/dist/
 
 # LibreOffice lock files
 .~lock.*#
-test/wsclient/wsclient
-
-# frontend-go: thư mục build của air
-frontend-go/tmp/

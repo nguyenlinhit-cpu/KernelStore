@@ -1,0 +1,184 @@
+package views
+
+import (
+	"fmt"
+
+	"github.com/KernelStore/frontend/internal/client"
+)
+
+templ CartPage(c *client.Cart, errMsg string) {
+	<div class="max-w-4xl mx-auto p-6">
+		<p class="term-muted text-sm mb-1">$ kernelstore --cart</p>
+		<h1 class="text-lg font-bold mb-4">{ t(ctx, "cart.title") }</h1>
+		@CartSection(c, errMsg)
+	</div>
+}
+
+// CartSection: phần được thay mới sau mỗi lần sửa số lượng / xoá.
+templ CartSection(c *client.Cart, errMsg string) {
+	<div id="cart-section" hx-target="this" hx-swap="outerHTML" hx-sync="this:drop">
+		if errMsg != "" {
+			<p class="term-error text-sm mb-3">{ "[ERROR] " + errMsg }</p>
+		}
+		if c == nil {
+			<p class="term-error">{ t(ctx, "cart.load_failed") }</p>
+		} else if len(c.Items) == 0 {
+			<div class="term-box p-8 text-center">
+				<p class="term-muted text-sm mb-1">{ t(ctx, "cart.empty") }</p>
+				<pre class="term-muted text-xs mb-4">{ t(ctx, "cart.empty_hint") }</pre>
+				<a href="/products" class="term-btn inline-block px-4 py-2 text-sm">{ t(ctx, "cart.browse") }</a>
+			</div>
+		} else {
+			<div class="term-box overflow-hidden">
+				<div class="grid grid-cols-[1fr_auto_auto_auto] gap-3 px-4 py-2 text-xs term-muted border-b border-[var(--border)]">
+					<span>{ t(ctx, "cart.col_product") }</span>
+					<span class="text-center w-28">{ t(ctx, "cart.col_qty") }</span>
+					<span class="text-right w-24">{ t(ctx, "cart.col_total") }</span>
+					<span class="w-8"></span>
+				</div>
+				for i := range c.Items {
+					@CartRow(&c.Items[i])
+				}
+			</div>
+			<div class="flex justify-end mt-4">
+				<div class="term-sub p-4 w-full sm:w-72">
+					<div class="flex justify-between text-sm mb-1">
+						<span class="term-muted">{ t(ctx, "cart.items") }</span>
+						<span>{ itoa(c.TotalItems) }</span>
+					</div>
+					<div class="flex justify-between text-sm mb-3">
+						<span class="term-muted">{ t(ctx, "cart.subtotal") }</span>
+						<span class="text-[var(--fg-primary)] font-bold">{ money(c.Subtotal) }</span>
+					</div>
+					<a href="/checkout" class="term-btn block text-center px-4 py-2 text-sm">{ t(ctx, "cart.checkout") }</a>
+				</div>
+			</div>
+		}
+	</div>
+}
+
+templ CartRow(item *client.CartItem) {
+	{{ qtyURL := "/x/cart/" + item.ProductID + "/qty" }}
+	<div class="grid grid-cols-[1fr_auto_auto_auto] gap-3 px-4 py-3 items-center border-b border-[var(--border)] last:border-0">
+		<div class="flex items-center gap-3 min-w-0">
+			<div class="term-box w-14 h-14 shrink-0 overflow-hidden flex items-center justify-center bg-[var(--bg-tertiary)]">
+				if deref(item.ImageUrl) == "" {
+					<span class="term-muted text-xl">[ ]</span>
+				} else {
+					<img src={ deref(item.ImageUrl) } class="w-full h-full object-cover"/>
+				}
+			</div>
+			<div class="min-w-0">
+				<a href={ templ.SafeURL("/products/" + item.Slug) } class="text-sm text-[var(--fg-primary)] hover:underline truncate block">{ item.Name }</a>
+				<div class="flex items-center gap-2 text-xs">
+					<span class="term-muted">{ money(item.UnitPrice) }</span>
+					if item.SalePrice != nil {
+						<span class="line-through term-muted">{ money(item.Price) }</span>
+					}
+					if item.ShopName != nil {
+						<span class="term-info">{ "· " + *item.ShopName }</span>
+					}
+				</div>
+				if item.Quantity >= item.StockQuantity {
+					<p class="term-warn text-xs mt-0.5">{ t(ctx, "cart.max_stock") + itoa(item.StockQuantity) }</p>
+				}
+			</div>
+		</div>
+		<div class="flex items-center gap-1 w-28 justify-center">
+			<button class="term-btn px-2 py-0.5 text-sm" hx-post={ qtyURL } hx-vals={ jsonAttr(map[string]string{"quantity": itoa(item.Quantity - 1)}) } hx-disabled-elt="this">−</button>
+			<span class="w-8 text-center text-sm">{ itoa(item.Quantity) }</span>
+			<button class="term-btn px-2 py-0.5 text-sm" disabled?={ item.Quantity >= item.StockQuantity } hx-post={ qtyURL } hx-vals={ jsonAttr(map[string]string{"quantity": itoa(item.Quantity + 1)}) } hx-disabled-elt="this">+</button>
+		</div>
+		<span class="text-right w-24 text-sm text-[var(--fg-primary)]">{ money(item.LineTotal) }</span>
+		<button class="term-btn px-2 py-0.5 text-xs text-[var(--fg-error)] w-8" title={ t(ctx, "cart.remove") } hx-post={ "/x/cart/" + item.ProductID + "/remove" } hx-disabled-elt="this">x</button>
+	</div>
+}
+
+// CheckoutForm là giá trị form địa chỉ (giữ lại khi lỗi).
+type CheckoutForm struct {
+	FullName, Phone, Street, Ward, District, City, Note, Error string
+}
+
+templ CheckoutPage(c *client.Cart, loadErr string, f CheckoutForm) {
+	<div class="max-w-4xl mx-auto p-6">
+		<p class="term-muted text-sm mb-1">$ kernelstore --checkout</p>
+		<h1 class="text-lg font-bold mb-4">{ t(ctx, "checkout.title") }</h1>
+		if c == nil {
+			<p class="term-error">{ t(ctx, "checkout.load_failed") }</p>
+		} else if len(c.Items) == 0 {
+			<div class="term-box p-8 text-center">
+				<p class="term-muted text-sm mb-4">{ t(ctx, "checkout.empty") }</p>
+				<a href="/products" class="term-btn inline-block px-4 py-2 text-sm">{ t(ctx, "checkout.browse") }</a>
+			</div>
+		} else {
+			@CheckoutBody(c, f)
+		}
+	</div>
+}
+
+// CheckoutBody: form + tóm tắt; đặt hàng xong được thay bằng OrderPlaced.
+templ CheckoutBody(c *client.Cart, f CheckoutForm) {
+	<form class="grid grid-cols-1 lg:grid-cols-2 gap-6" hx-post="/x/checkout" hx-target="this" hx-swap="outerHTML" hx-disabled-elt="find button[type=submit]">
+		<div class="term-box p-4">
+			<p class="term-muted text-xs mb-3">{ t(ctx, "checkout.address") }</p>
+			@TermInput("co-name", "fullName", t(ctx, "checkout.full_name"), "", "Nguyen Van A", f.FullName, nil)
+			@TermInput("co-phone", "phone", t(ctx, "checkout.phone"), "", "0901234567", f.Phone, nil)
+			@TermInput("co-street", "street", t(ctx, "checkout.street"), "", "123 Le Loi", f.Street, nil)
+			@TermInput("co-ward", "ward", t(ctx, "checkout.ward"), "", "Ben Nghe", f.Ward, nil)
+			@TermInput("co-district", "district", t(ctx, "checkout.district"), "", "Quan 1", f.District, nil)
+			@TermInput("co-city", "city", t(ctx, "checkout.city"), "", "Ho Chi Minh", f.City, nil)
+			@TermInput("co-note", "note", t(ctx, "checkout.note"), "", t(ctx, "checkout.note_ph"), f.Note, nil)
+		</div>
+		<div>
+			<div class="term-box overflow-hidden">
+				<p class="term-muted text-xs px-4 py-2 border-b border-[var(--border)]">{ t(ctx, "checkout.summary") }</p>
+				for _, item := range c.Items {
+					<div class="flex justify-between items-center gap-2 px-4 py-2 text-sm border-b border-[var(--border)] last:border-0">
+						<span class="truncate">
+							{ item.Name }
+							<span class="term-muted text-xs">{ fmt.Sprintf(" ×%d", item.Quantity) }</span>
+						</span>
+						<span class="shrink-0">{ money(item.LineTotal) }</span>
+					</div>
+				}
+			</div>
+			<div class="term-sub p-4 mt-4">
+				<div class="flex justify-between text-sm mb-1">
+					<span class="term-muted">{ t(ctx, "checkout.items") }</span>
+					<span>{ itoa(c.TotalItems) }</span>
+				</div>
+				<div class="flex justify-between text-sm mb-1">
+					<span class="term-muted">{ t(ctx, "checkout.shipping") }</span>
+					<span>$0.00</span>
+				</div>
+				<div class="flex justify-between text-base mb-3">
+					<span class="term-muted">{ t(ctx, "checkout.total") }</span>
+					<span class="text-[var(--fg-primary)] font-bold">{ money(c.Subtotal) }</span>
+				</div>
+				if f.Error != "" {
+					<p class="term-error text-xs mb-2">{ "[ERROR] " + f.Error }</p>
+				}
+				<button type="submit" class="term-btn block w-full text-center px-4 py-2 text-sm">
+					@BusyLabel(t(ctx, "checkout.place"), t(ctx, "checkout.placing"))
+				</button>
+				<a href="/cart" class="term-muted text-xs block text-center mt-2 hover:underline">{ t(ctx, "checkout.back_cart") }</a>
+			</div>
+		</div>
+	</form>
+}
+
+templ OrderPlaced(o *client.Order) {
+	<div class="term-box p-8">
+		<p class="term-info text-sm mb-2">{ t(ctx, "checkout.confirmed") }</p>
+		<pre class="term-muted text-xs whitespace-pre-wrap mb-4">{ fmt.Sprintf("  %s : %s\n  %s : %s\n  %s : %d\n  %s : $%.2f\n  %s : %s, %s",
+	t(ctx, "checkout.order_code"), o.OrderCode,
+	t(ctx, "checkout.status"), o.Status,
+	t(ctx, "checkout.r_items"), o.ItemCount,
+	t(ctx, "checkout.r_total"), o.TotalAmount,
+	t(ctx, "checkout.ship_to"), o.Address.FullName, o.Address.City) }</pre>
+		<div class="flex gap-2 flex-wrap">
+			<a href="/orders" class="term-btn inline-block px-4 py-2 text-sm">{ t(ctx, "checkout.history") }</a>
+			<a href="/products" class="term-btn inline-block px-4 py-2 text-sm">{ t(ctx, "checkout.continue") }</a>
+		</div>
+	</div>
+}

@@ -1,0 +1,489 @@
+package views
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/KernelStore/frontend/internal/client"
+)
+
+var sellerSections = []string{"dashboard", "sales", "products", "categories", "settings"}
+
+var salesStatuses = []string{"", "Pending", "Confirmed", "Processing", "Shipped", "Delivered", "ReturnRequested", "Returned", "Cancelled"}
+
+// ShopFormState: form tạo shop / cài đặt shop.
+type ShopFormState struct {
+	Name, Slug, Description, Error string
+}
+
+templ SellerPage(body templ.Component) {
+	<div class="max-w-4xl mx-auto p-6">
+		<p class="term-muted text-sm mb-1">$ kernelstore --seller</p>
+		<h1 class="text-lg font-bold mb-4">{ t(ctx, "seller.title") }</h1>
+		@body
+	</div>
+}
+
+templ SellerError(msg string) {
+	<p class="term-error">{ "[ERROR] " + msg }</p>
+}
+
+// SellerLayout: sidebar + nội dung của section đang chọn.
+templ SellerLayout(shop *client.ShopInfo, section string, content templ.Component) {
+	<div class="flex flex-col sm:flex-row gap-4 sm:items-start">
+		<aside class="term-box p-3 w-full sm:w-44 shrink-0">
+			<p class="term-muted text-xs mb-2">{ t(ctx, "seller.menu") }</p>
+			<nav class="flex flex-row sm:flex-col gap-1">
+				for _, s := range sellerSections {
+					{{ enabled := (s != "products" && s != "sales" && s != "categories") || shop.Status == "Approved" }}
+					{{ label := "  " + t(ctx, "seller.m."+s) }}
+					if section == s {
+						{{ label = "> " + t(ctx, "seller.m."+s) }}
+					}
+					if enabled {
+						<a href={ templ.SafeURL("/seller?tab=" + s) } class={ "term-menu-item px-2 py-1.5 text-sm text-left whitespace-pre", templ.KV("term-active", section == s) }>{ label }</a>
+					} else {
+						<span class="term-menu-item term-disabled px-2 py-1.5 text-sm text-left whitespace-pre">{ label }</span>
+					}
+				}
+			</nav>
+		</aside>
+		<div class="flex-1 min-w-0" id="seller-content">
+			@content
+		</div>
+	</div>
+}
+
+// SellerFlash: dòng "[OK] ..." đầu khung nội dung (giữ chỗ khi rỗng).
+templ SellerFlash(msg string) {
+	<p class={ "term-info text-sm mb-2", templ.KV("invisible", msg == "") }>{ "[OK] " + msg }</p>
+}
+
+templ NotApproved(key string) {
+	@SellerFlash("")
+	<div class="term-box p-5">
+		<p class="term-warn text-sm">{ t(ctx, key) }</p>
+	</div>
+}
+
+templ SellerDashboardSection(shop *client.ShopInfo) {
+	@SellerFlash("")
+	<div class="mb-4" hx-get="/x/seller/dashboard" hx-trigger="load" hx-swap="innerHTML">
+		<p>
+			@Loading(t(ctx, "seller.loading_stats"))
+		</p>
+	</div>
+	@ShopStatusBox(shop)
+}
+
+templ RevenueDashboard(s *client.SellerDashboard, errMsg string) {
+	if errMsg != "" {
+		<p class="term-error text-sm mb-3">{ "[ERROR] " + errMsg }</p>
+	} else if s != nil {
+		<div class="term-box p-4 mb-4">
+			<p class="term-muted text-xs mb-1">{ t(ctx, "seller.revenue") }</p>
+			<p class="text-2xl font-bold text-[var(--fg-primary)]">{ money(s.TotalRevenue) }</p>
+		</div>
+		<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+			@StatCard(t(ctx, "seller.s.orders"), itoa(s.TotalOrders))
+			@StatCard(t(ctx, "seller.s.pending"), itoa(s.PendingOrders))
+			@StatCard(t(ctx, "seller.s.items_sold"), itoa(s.ItemsSold))
+			@StatCard(t(ctx, "seller.s.products"), itoa(s.ActiveProducts)+"/"+itoa(s.TotalProducts))
+		</div>
+		<div class="term-box p-4 mb-4 font-mono text-sm overflow-x-auto">
+			<p class="term-muted text-xs mb-3">{ t(ctx, "seller.orders_by_status") }</p>
+			@StatusMeters(s.OrdersByStatus)
+		</div>
+		<div class="term-box p-4 mb-4">
+			<p class="term-muted text-xs mb-3">{ t(ctx, "seller.top_products") }</p>
+			if len(s.TopProducts) == 0 {
+				<p class="term-muted text-sm">{ t(ctx, "seller.no_orders_yet") }</p>
+			} else {
+				<div class="flex flex-col gap-1">
+					for i, p := range s.TopProducts {
+						<div class="flex items-center justify-between gap-3 text-sm border-b border-[var(--border)] last:border-0 py-1">
+							<span class="min-w-0 truncate">
+								<span class="term-muted">{ fmt.Sprintf("%d. ", i+1) }</span>
+								{ p.Name }
+								<span class="term-muted text-xs">{ fmt.Sprintf(" ×%d", p.QuantitySold) }</span>
+							</span>
+							<span class="shrink-0 text-[var(--fg-primary)]">{ money(p.Revenue) }</span>
+						</div>
+					}
+				</div>
+			}
+		</div>
+	}
+}
+
+templ ShopStatusBox(shop *client.ShopInfo) {
+	<div class="term-box p-5">
+		<h2 class="font-bold text-[var(--fg-primary)]">{ shop.Name }</h2>
+		<p class="term-muted text-sm mt-1">{ "slug: " + shop.Slug }</p>
+		<p class="text-sm mt-2">{ shop.Description }</p>
+		<p class="mt-3 text-sm"><span class={ shopBadge(shop.Status) }>{ "[" + shop.Status + "]" }</span></p>
+		if shop.Status == "Pending" {
+			<p class="term-warn text-sm mt-3">{ t(ctx, "seller.pending_review") }</p>
+		} else if shop.Status == "Rejected" {
+			<p class="term-error text-sm mt-3">{ t(ctx, "seller.rejected_msg") }</p>
+		} else {
+			<p></p>
+		}
+	</div>
+}
+
+templ SalesSection(orders []client.Order, errMsg, filter string) {
+	@SellerFlash("")
+	<div class="term-box p-5">
+		<div class="flex justify-between items-center mb-3 gap-3 flex-wrap">
+			<h3 class="font-bold text-[var(--fg-primary)]">{ t(ctx, "seller.sales_h") }</h3>
+			<select name="status" class="term-input px-3 py-1.5 text-sm" hx-get="/x/seller/sales" hx-target="#sales-list" hx-swap="outerHTML">
+				for _, s := range salesStatuses {
+					<option value={ s } selected?={ s == filter }>
+						if s == "" {
+							{ t(ctx, "seller.all_statuses") }
+						} else {
+							{ s }
+						}
+					</option>
+				}
+			</select>
+		</div>
+		@SalesList(orders, errMsg)
+	</div>
+}
+
+templ SalesList(orders []client.Order, errMsg string) {
+	<div id="sales-list">
+		@ErrorLine(errMsg, "")
+		if len(orders) == 0 {
+			<p class="term-muted text-sm">{ t(ctx, "seller.no_sales") }</p>
+		} else {
+			<div class="flex flex-col gap-2">
+				for i := range orders {
+					@OrderRow(&orders[i])
+				}
+			</div>
+		}
+	</div>
+}
+
+// ShopSettings: sửa tên / slug / mô tả shop.
+templ ShopSettings(f ShopFormState, flash string) {
+	<div id="shop-settings" hx-target="this" hx-swap="outerHTML">
+		@SellerFlash(flash)
+		<form class="term-box p-5" hx-post="/x/seller/shop/update" hx-disabled-elt="find button[type=submit]">
+			<h3 class="font-bold text-[var(--fg-primary)] mb-4">{ t(ctx, "seller.settings_h") }</h3>
+			@TermInput("set-name", "name", t(ctx, "seller.shop_name"), "", "", f.Name, nil)
+			@TermInput("set-slug", "slug", t(ctx, "common.slug"), "", "", f.Slug, nil)
+			@TermInput("set-desc", "description", t(ctx, "common.description"), "", "", f.Description, nil)
+			@ErrorLine(f.Error, "")
+			<button type="submit" class="term-btn w-full mt-2 px-3 py-2 text-sm">
+				@BusyLabel(t(ctx, "seller.save_settings"), t(ctx, "seller.submitting"))
+			</button>
+		</form>
+	</div>
+}
+
+// CreateShopForm: chưa có shop → mở shop (slug tự sinh từ tên cho tới khi tự sửa slug).
+templ CreateShopForm(f ShopFormState) {
+	<form class="term-box p-5" hx-post="/x/seller/shop" hx-target="this" hx-swap="outerHTML" hx-disabled-elt="find button[type=submit]" data-slugify>
+		<p class="text-sm mb-4 term-muted">{ t(ctx, "seller.no_shop_hint") }</p>
+		@TermInput("shop-name", "name", t(ctx, "seller.shop_name"), "", "Tech Hub Vietnam", f.Name, templ.Attributes{"data-slug-source": true})
+		@TermInput("shop-slug", "slug", t(ctx, "common.slug"), "", "tech-hub-vn", f.Slug, templ.Attributes{"data-slug-target": true, "data-slug-auto": boolStr(f.Slug == "")})
+		@TermInput("shop-desc", "description", t(ctx, "common.description"), "", "Gadgets and electronics", f.Description, nil)
+		@ErrorLine(f.Error, "")
+		<button type="submit" class="term-btn w-full mt-2 px-3 py-2 text-sm">
+			@BusyLabel(t(ctx, "seller.create_shop"), t(ctx, "seller.submitting"))
+		</button>
+	</form>
+}
+
+// ProductFormState: giá trị form sản phẩm (giữ nguyên chuỗi người dùng nhập).
+type ProductFormState struct {
+	EditID, Name, Slug, Description, Price, Sale, Stock, Sku, Warranty, CategoryID, Images string
+	IsActive                                                                                bool
+	Error                                                                                   string
+}
+
+func (f ProductFormState) imageList() []string {
+	var out []string
+	for _, l := range strings.Split(f.Images, "\n") {
+		if l = strings.TrimSpace(l); l != "" {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+// CategoryOption: một lựa chọn category cho form sản phẩm.
+type CategoryOption struct{ ID, Label string }
+
+// ProductManagerVM: danh sách sản phẩm của shop + form tạo/sửa đang mở.
+type ProductManagerVM struct {
+	Products   []client.Product
+	Categories []CategoryOption
+	Error      string
+	NewForm    *ProductFormState            // khác nil = đang mở form thêm mới
+	EditForms  map[string]*ProductFormState // productID → form sửa đang mở
+	RowErrors  map[string]string
+}
+
+templ ProductManager(vm ProductManagerVM) {
+	<div id="product-manager" hx-target="this" hx-swap="outerHTML">
+		@SellerFlash("")
+		<div class="term-box p-5">
+			<div class="flex justify-between items-center mb-3">
+				<h3 class="font-bold text-[var(--fg-primary)]">{ t(ctx, "seller.products_h") }</h3>
+				<button type="button" class="term-btn px-3 py-1 text-xs" data-toggle="#new-product-form" data-label-open={ t(ctx, "seller.cancel_form") } data-label-closed={ t(ctx, "seller.new_product") }>
+					if vm.NewForm != nil {
+						{ t(ctx, "seller.cancel_form") }
+					} else {
+						{ t(ctx, "seller.new_product") }
+					}
+				</button>
+			</div>
+			@ErrorLine(vm.Error, "")
+			<div id="new-product-form" class={ templ.KV("hidden", vm.NewForm == nil) }>
+				if vm.NewForm != nil {
+					@ProductForm(*vm.NewForm, vm.Categories)
+				} else {
+					@ProductForm(NewProductForm(), vm.Categories)
+				}
+			</div>
+			if len(vm.Products) == 0 {
+				<p class="term-muted">{ t(ctx, "seller.no_products") }</p>
+			} else {
+				<div class="flex flex-col gap-2">
+					for i := range vm.Products {
+						@ProductRow(&vm.Products[i], vm.Categories, vm.EditForms[vm.Products[i].ID], vm.RowErrors[vm.Products[i].ID])
+					}
+				</div>
+			}
+		</div>
+	</div>
+}
+
+templ ProductRow(p *client.Product, cats []CategoryOption, edit *ProductFormState, rowErr string) {
+	{{ rowURL := "/x/seller/products/" + p.ID + "/row" }}
+	<div class="term-row p-3" hx-target="this" hx-swap="outerHTML">
+		<div class="flex justify-between items-start gap-3">
+			<div class="min-w-0">
+				<h4 class="font-bold text-[var(--fg-primary)]">{ p.Name }</h4>
+				<p class="term-muted text-xs mt-0.5">{ "slug: " + p.Slug + " | sku: " + p.Sku }</p>
+				<p class="text-xs mt-1">
+					if p.IsActive {
+						<span class="term-info">{ "[" + t(ctx, "seller.active") + "]" }</span>
+					} else {
+						<span class="term-muted">{ "[" + t(ctx, "seller.hidden") + "]" }</span>
+					}
+					{ " " + debugFloat(p.Price) + " đ" + t(ctx, "seller.stock_label") + itoa(p.StockQuantity) }
+					if p.SalePrice != nil {
+						{ t(ctx, "seller.sale_label") + debugFloat(*p.SalePrice) + " đ" }
+					}
+					if deref(p.CategoryName) != "" {
+						{ t(ctx, "seller.cat_label") + *p.CategoryName }
+					}
+				</p>
+				<p class={ "term-error text-xs mt-1", templ.KV("invisible", rowErr == "") }>{ rowErr }</p>
+			</div>
+			<div class="flex gap-2 shrink-0">
+				<button type="button" class="term-btn px-2 py-1 text-xs" hx-get={ rowURL + editQuery(edit == nil) }>
+					if edit != nil {
+						{ t(ctx, "common.cancel") }
+					} else {
+						{ t(ctx, "common.edit") }
+					}
+				</button>
+				<button type="button" class="term-btn px-2 py-1 text-xs" hx-post={ "/x/seller/products/" + p.ID + "/delete" } hx-target="#product-manager" hx-disabled-elt="this">{ t(ctx, "common.delete") }</button>
+			</div>
+		</div>
+		if edit != nil {
+			<div class="mt-3">
+				@ProductForm(*edit, cats)
+			</div>
+		}
+	</div>
+}
+
+templ ProductForm(f ProductFormState, cats []CategoryOption) {
+	{{ isEdit := f.EditID != "" }}
+	{{ action := "/x/seller/products" }}
+	if isEdit {
+		{{ action = "/x/seller/products/" + f.EditID }}
+	}
+	<form class="term-sub p-4 mb-3" hx-post={ action } hx-target="#product-manager" hx-disabled-elt="find button[type=submit]" data-slugify data-product-form>
+		@TermInput(f.EditID+"prod-name", "name", t(ctx, "common.name"), "", "Mechanical Keyboard", f.Name, templ.Attributes{"data-slug-source": true})
+		@TermInput(f.EditID+"prod-slug", "slug", t(ctx, "common.slug"), "", "mechanical-keyboard", f.Slug, templ.Attributes{"data-slug-target": true, "data-slug-auto": boolStr(!isEdit && f.Slug == "")})
+		@TermInput(f.EditID+"prod-desc", "description", t(ctx, "common.description"), "", "Cherry MX brown switches", f.Description, nil)
+		<div class="flex gap-3">
+			<div class="flex-1">
+				@TermInput(f.EditID+"prod-price", "price", t(ctx, "seller.f.price"), "number", "890000", f.Price, templ.Attributes{"step": "any"})
+			</div>
+			<div class="flex-1">
+				@TermInput(f.EditID+"prod-sale", "sale", t(ctx, "seller.f.sale_price"), "number", "(optional)", f.Sale, templ.Attributes{"step": "any"})
+			</div>
+		</div>
+		<div class="flex gap-3">
+			<div class="flex-1">
+				@TermInput(f.EditID+"prod-stock", "stock", t(ctx, "seller.f.stock"), "number", "10", f.Stock, nil)
+			</div>
+			<div class="flex-1">
+				@TermInput(f.EditID+"prod-sku", "sku", t(ctx, "seller.f.sku"), "", "KB-001", f.Sku, nil)
+			</div>
+			<div class="flex-1">
+				@TermInput(f.EditID+"prod-warranty", "warranty", t(ctx, "seller.f.warranty"), "number", "12", f.Warranty, nil)
+			</div>
+		</div>
+		<label class="block mb-1 text-xs term-muted">{ t(ctx, "seller.f.category") }</label>
+		<div class="flex items-center gap-2 mb-3">
+			<span class="term-info text-sm shrink-0">&gt;</span>
+			<select name="categoryId" class="term-input w-full px-3 py-2 text-sm">
+				<option value="" selected?={ f.CategoryID == "" }>{ t(ctx, "seller.no_category") }</option>
+				for _, c := range cats {
+					<option value={ c.ID } selected?={ c.ID == f.CategoryID }>{ c.Label }</option>
+				}
+			</select>
+		</div>
+		<label class="block mb-1 text-xs term-muted">{ t(ctx, "seller.images_upload") }</label>
+		<div class="flex items-center gap-2 mb-2">
+			<span class="term-info text-sm shrink-0">&gt;</span>
+			<input type="file" accept="image/jpeg,image/png,image/svg+xml,.jpg,.jpeg,.png,.svg" multiple class="term-input w-full px-3 py-2 text-sm file:mr-3 file:px-2 file:py-1 file:border-0 file:bg-[var(--fg-primary)] file:text-[var(--bg-primary)] file:cursor-pointer" data-upload-images/>
+			<span class="text-xs term-muted shrink-0 invisible" data-uploading>{ t(ctx, "seller.uploading") }</span>
+		</div>
+		<div class="flex flex-wrap gap-2 mb-2" data-image-previews>
+			for _, u := range f.imageList() {
+				<img src={ u } alt="preview" title={ u } class="h-14 w-14 object-cover rounded border border-[var(--border)] bg-[var(--bg-tertiary)]"/>
+			}
+		</div>
+		<label class="block mb-1 text-xs term-muted">{ t(ctx, "seller.image_urls") }</label>
+		<div class="flex items-start gap-2 mb-3">
+			<span class="term-info text-sm shrink-0">&gt;</span>
+			<textarea name="images" class="term-input w-full px-3 py-2 text-sm" rows="3" placeholder="https://img.ks.com/a.jpg" data-image-urls>{ f.Images }</textarea>
+		</div>
+		if isEdit {
+			<label class="flex items-center gap-2 mb-3 text-sm cursor-pointer">
+				<input type="checkbox" name="isActive" value="1" checked?={ f.IsActive }/>
+				<span class="term-muted">{ t(ctx, "seller.active_visible") }</span>
+			</label>
+		} else {
+			<input type="hidden" name="isActive" value="1"/>
+		}
+		@ErrorLine(f.Error, "")
+		<button type="submit" class="term-btn w-full mt-1 px-3 py-2 text-sm">
+			if isEdit {
+				@BusyLabel(t(ctx, "seller.update_product"), t(ctx, "seller.submitting"))
+			} else {
+				@BusyLabel(t(ctx, "seller.save_product"), t(ctx, "seller.submitting"))
+			}
+		</button>
+	</form>
+}
+
+// NewProductForm: giá trị mặc định (bảo hành 12 tháng, đang bán).
+func NewProductForm() ProductFormState { return ProductFormState{Warranty: "12", IsActive: true} }
+
+// EditProductForm điền sẵn từ sản phẩm hiện có (số hiển thị như f64.to_string() của Rust).
+func EditProductForm(p *client.Product) ProductFormState {
+	f := ProductFormState{
+		EditID: p.ID, Name: p.Name, Slug: p.Slug, Description: p.Description,
+		Price: plainFloat(p.Price), Stock: itoa(p.StockQuantity), Sku: p.Sku,
+		Warranty: itoa(p.WarrantyMonths), CategoryID: deref(p.CategoryID), IsActive: p.IsActive,
+	}
+	if p.SalePrice != nil {
+		f.Sale = plainFloat(*p.SalePrice)
+	}
+	urls := make([]string, 0, len(p.Images))
+	for _, i := range p.Images {
+		urls = append(urls, i.Url)
+	}
+	f.Images = strings.Join(urls, "\n")
+	return f
+}
+
+// SellerCategoriesVM: category riêng của shop.
+type SellerCategoriesVM struct {
+	Cats    []client.CategoryNode
+	Form    CategoryFormState
+	Flash   string
+	Error   string
+	LoadErr string
+}
+
+templ SellerCategoryManager(vm SellerCategoriesVM) {
+	<div id="seller-cats" hx-target="this" hx-swap="outerHTML">
+		@SellerFlash("")
+		<h2 class="text-base font-bold mb-1">{ t(ctx, "seller.shop_cats_h") }</h2>
+		<p class="term-muted text-xs mb-3">{ t(ctx, "seller.shop_cats_hint") }</p>
+		if vm.Flash != "" {
+			<p class="term-info text-sm mb-2">{ "[OK] " + vm.Flash }</p>
+		}
+		if vm.Error != "" {
+			<p class="term-error text-sm mb-2">{ "[ERROR] " + vm.Error }</p>
+		}
+		<form class="term-box p-4 mb-6" hx-post="/x/seller/categories" hx-disabled-elt="find button[type=submit]" data-slugify>
+			<input type="hidden" name="id" value={ vm.Form.EditID }/>
+			<p class="term-muted text-xs mb-3">
+				if vm.Form.EditID != "" {
+					{ t(ctx, "seller.edit_cat") }
+				} else {
+					{ t(ctx, "seller.new_cat") }
+				}
+			</p>
+			<div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+				<div>
+					<label class="block mb-1 text-xs term-muted">{ t(ctx, "common.name") }</label>
+					<input name="name" class="term-input w-full px-3 py-2 text-sm" value={ vm.Form.Name } data-slug-source/>
+				</div>
+				<div>
+					<label class="block mb-1 text-xs term-muted">{ t(ctx, "common.slug") }</label>
+					<input name="slug" class="term-input w-full px-3 py-2 text-sm" value={ vm.Form.Slug } data-slug-target data-slug-auto={ boolStr(vm.Form.EditID == "") }/>
+				</div>
+				<div>
+					<label class="block mb-1 text-xs term-muted">{ t(ctx, "common.description") }</label>
+					<input name="description" class="term-input w-full px-3 py-2 text-sm" value={ vm.Form.Description }/>
+				</div>
+			</div>
+			<div class="flex gap-2 mt-3">
+				<button type="submit" class="term-btn px-4 py-1.5 text-sm">
+					if vm.Form.EditID != "" {
+						@BusyLabel(t(ctx, "common.update"), t(ctx, "common.saving"))
+					} else {
+						@BusyLabel(t(ctx, "common.create"), t(ctx, "common.saving"))
+					}
+				</button>
+				if vm.Form.EditID != "" {
+					<button type="button" class="term-btn px-4 py-1.5 text-sm" hx-get="/x/seller/categories">{ t(ctx, "common.cancel") }</button>
+				}
+			</div>
+		</form>
+		if vm.LoadErr != "" {
+			<p class="term-error text-sm">{ vm.LoadErr }</p>
+		} else if len(vm.Cats) == 0 {
+			<p class="term-muted text-sm">{ t(ctx, "seller.no_cats") }</p>
+		} else {
+			<div class="flex flex-col gap-2">
+				for _, c := range vm.Cats {
+					<div class="term-box p-3 flex justify-between items-center gap-2">
+						<div class="min-w-0">
+							<p class="text-sm text-[var(--fg-primary)] truncate">{ c.Name }</p>
+							<p class="term-muted text-xs truncate">{ "slug: " + c.Slug + " | " + itoa(c.ProductCount) + t(ctx, "seller.cat_products") }</p>
+						</div>
+						<div class="flex gap-2 shrink-0">
+							<button class="term-btn px-2 py-1 text-xs" hx-get={ "/x/seller/categories?edit=" + c.ID }>{ t(ctx, "common.edit") }</button>
+							<button class="term-btn px-2 py-1 text-xs term-error" hx-post={ "/x/seller/categories/" + c.ID + "/delete" } hx-vals={ jsonAttr(map[string]string{"name": c.Name}) }>{ t(ctx, "common.delete") }</button>
+						</div>
+					</div>
+				}
+			</div>
+		}
+	</div>
+}
+
+// editQuery: ?edit=1 mở form sửa, ?edit=0 đóng.
+func editQuery(open bool) string {
+	if open {
+		return "?edit=1"
+	}
+	return "?edit=0"
+}

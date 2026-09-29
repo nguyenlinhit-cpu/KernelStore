@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # One-command full stack for NixOS: Database -> Backend -> Frontend.
-# Run inside nix-shell:   nix-shell --run ./run.sh
+# Run inside nix-shell:   nix-shell --run ./run.sh   (cần Go 1.27, templ, tailwindcss, air)
 # Brings up Postgres (docker), waits until healthy, starts the backend in the
 # background, waits until :5000 answers, then runs the frontend in the
 # foreground. Ctrl+C stops the frontend and tears down the backend.
@@ -27,7 +27,7 @@ done
 echo "    Postgres OK."
 
 echo "==> Backend -> http://localhost:5000 (log: /tmp/kernelstore-backend.log)"
-dotnet run --project backend/KernelStore.Api --urls http://localhost:5000 \
+(cd backend && go build -o /tmp/kernelstore-api ./cmd/api && exec /tmp/kernelstore-api) \
   >/tmp/kernelstore-backend.log 2>&1 &
 BACKEND_PID=$!
 
@@ -39,4 +39,4 @@ done
 echo "    Backend OK."
 
 echo "==> [3/3] Frontend -> http://localhost:8080 (Ctrl+C de dung tat ca)"
-cd frontend && trunk serve --port 8080
+cd frontend && air   # templ generate + tailwind + build, tự reload khi sửa code

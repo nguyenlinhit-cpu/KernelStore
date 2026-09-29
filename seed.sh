@@ -5,4 +5,4 @@
 #   nix-shell --run ./seed.sh
 set -euo pipefail
 cd "$(dirname "$0")"
-cd backend-go && go run ./cmd/api seed
+cd backend && go run ./cmd/api seed

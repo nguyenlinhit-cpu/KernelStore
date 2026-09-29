@@ -27,7 +27,7 @@ echo       Postgres healthy.
 
 echo.
 echo [3/5] Backend -^> http://localhost:5000 (cua so moi)
-start "KernelStore Backend" cmd /k "cd /d "%~dp0" ^&^& dotnet run --project backend\KernelStore.Api --urls http://localhost:5000"
+start "KernelStore Backend" cmd /k "cd /d "%~dp0backend" ^&^& go run ./cmd/api"
 
 echo.
 echo [4/5] Doi Backend san sang (lan dau phai build, co the vai phut)...
@@ -41,10 +41,10 @@ echo       Backend dang lang nghe tai :5000.
 
 echo.
 echo [5/5] Frontend -^> http://localhost:8080 (cua so moi)
-start "KernelStore Frontend" cmd /k "cd /d "%~dp0frontend" ^&^& trunk serve --port 8080"
+start "KernelStore Frontend" cmd /k "call "%~dp0win-frontend.bat""
 
 echo.
-echo Doi Frontend build xong (lan dau bien dich WASM, co the vai phut)...
+echo Doi Frontend build xong (lan dau tai thu vien Go, co the vai phut)...
 :waitfrontend
 curl -s -o nul http://localhost:8080
 if errorlevel 1 (
