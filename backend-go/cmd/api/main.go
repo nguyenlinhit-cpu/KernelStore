@@ -68,8 +68,10 @@ func main() {
 
 	// `go run ./cmd/api seed` — seed demo data rồi thoát.
 	if slices.ContainsFunc(os.Args[1:], func(a string) bool { return a == "seed" || a == "--seed" }) {
-		slog.Info("Seed demo data mode — will be implemented in Phase 9")
-		// TODO: giai đoạn 9 — seedDemoData(ctx, pool, cfg)
+		if err := seedDemoData(ctx, pool); err != nil {
+			slog.Error("Seed demo data failed", "err", err)
+			os.Exit(1)
+		}
 		return
 	}
 

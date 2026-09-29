@@ -7,10 +7,10 @@ BASE="http://localhost:5000/api"
 WS="http://localhost:5000/ws/chat"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WSCLIENT_SRC="${SCRIPT_DIR}/test/wsclient"
-WSCLIENT="${WSCLIENT_SRC}/bin/Debug/net10.0/wsclient.dll"
+WSCLIENT="${WSCLIENT_SRC}/wsclient"
 if [ ! -f "$WSCLIENT" ]; then
   echo "  (building wsclient WebSocket probe...)"
-  (cd "$WSCLIENT_SRC" && dotnet build -v q >/dev/null 2>&1) || { echo "cannot build wsclient"; exit 1; }
+  (cd "$WSCLIENT_SRC" && CGO_ENABLED=0 go build -o wsclient . >/dev/null 2>&1) || { echo "cannot build wsclient"; exit 1; }
 fi
 TS="$(date +%s)"
 PASS=0
@@ -59,8 +59,8 @@ THIRD_TOKEN="$(req POST /auth/login "" "{\"email\":\"${THIRD_EMAIL}\",\"password
 echo "--- auth ---"
 check "no token → conversations 401" "$(req_code GET /chat/conversations)" "401"
 check "no token → send message 401" "$(req_code POST /chat/conversations/00000000-0000-0000-0000-000000000000/messages "" '{"content":"hi"}')" "401"
-check "invalid ws token → reject" "$(timeout 6 dotnet "$WSCLIENT" "not-a-jwt" 3 | grep -c connected || true)" "0"
-check "missing ws token → reject" "$(timeout 6 dotnet "$WSCLIENT" "" 3 | grep -c connected || true)" "0"
+check "invalid ws token → reject" "$(timeout 6 "$WSCLIENT" "not-a-jwt" 3 | grep -c connected || true)" "0"
+check "missing ws token → reject" "$(timeout 6 "$WSCLIENT" "" 3 | grep -c connected || true)" "0"
 
 # ── Conversations ────────────────────────────────────────────────────────
 echo "--- start conversation ---"
@@ -106,7 +106,7 @@ check "buyer unread 0 (own messages not counted)" "$BUYER_UNREAD" "0"
 # ── Real-time via WebSocket ──────────────────────────────────────────────
 echo "--- websocket realtime ---"
 rm -f /tmp/opencode/ws_buyer.log
-timeout 12 dotnet "$WSCLIENT" "$BUYER_TOKEN" 10 > /tmp/opencode/ws_buyer.log 2>&1 &
+timeout 12 "$WSCLIENT" "$BUYER_TOKEN" 10 > /tmp/opencode/ws_buyer.log 2>&1 &
 WSPID=$!
 sleep 2
 grep -q "\[ws\] connected" /tmp/opencode/ws_buyer.log && ok "buyer ws connected" || bad "buyer ws connected"
@@ -116,7 +116,7 @@ grep -q 'c\\u00F3 ch\\u1EE9 b\\u1EA1n' /tmp/opencode/ws_buyer.log && ok "seller 
 wait $WSPID
 
 rm -f /tmp/opencode/ws_seller.log
-timeout 12 dotnet "$WSCLIENT" "$SELLER_TOKEN" 10 > /tmp/opencode/ws_seller.log 2>&1 &
+timeout 12 "$WSCLIENT" "$SELLER_TOKEN" 10 > /tmp/opencode/ws_seller.log 2>&1 &
 WSPID=$!
 sleep 2
 req POST /chat/conversations/${CONVO_ID}/messages "$BUYER_TOKEN" '{"content":"ok đặt nhé"}' >/dev/null

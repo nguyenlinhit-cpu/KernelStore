@@ -22,3 +22,4 @@ frontend/dist/
 
 # LibreOffice lock files
 .~lock.*#
+test/wsclient/wsclient

@@ -5,4 +5,4 @@
 #   nix-shell --run ./seed.sh
 set -euo pipefail
 cd "$(dirname "$0")"
-dotnet run --project backend/KernelStore.Api --no-launch-profile seed
+cd backend-go && go run ./cmd/api seed
