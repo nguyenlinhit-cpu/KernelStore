@@ -19,7 +19,7 @@ cleanup() {
 trap cleanup INT TERM EXIT
 
 echo "==> [1/3] Database (Postgres 16)..."
-docker compose up -d || { echo "Docker daemon chua bat? Xem README muc NixOS."; exit 1; }
+docker compose up -d postgres || { echo "Docker daemon chua bat? Xem README muc NixOS."; exit 1; }
 
 echo "==> [2/3] Doi Postgres healthy..."
 until docker compose exec -T postgres pg_isready -U admin -d kernelstore >/dev/null 2>&1; do

@@ -59,6 +59,14 @@ Chi tiết từng file: [KernelStore_CauTrucThuMuc.md](./KernelStore_CauTrucThuM
 Cần **3 thành phần chạy cùng lúc**, đúng thứ tự: **Database → Backend → Frontend**.
 
 ```sh
+# Docker — không cần cài Go/Nix, chỉ cần Docker. Build + chạy cả stack:
+docker compose up -d --build
+docker compose run --rm backend seed        # seed dữ liệu mẫu (tuỳ chọn)
+# Cổng 8080/5000 bị chiếm? Đổi cổng host: WEB_PORT=8081 API_PORT=5001 docker compose up -d --build
+# Tắt: docker compose down   (thêm -v để xoá cả DB và ảnh upload)
+```
+
+```sh
 # NixOS/Linux — dựng cả stack, Ctrl+C để tắt
 nix develop -c ./run.sh
 ```
