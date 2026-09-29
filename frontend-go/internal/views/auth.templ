@@ -1,0 +1,57 @@
+package views
+
+type LoginForm struct {
+	Email, Password, Error string
+}
+
+type RegisterForm struct {
+	FullName, UserName, Email, Password, Error string
+}
+
+templ LoginPage(f LoginForm) {
+	<div class="max-w-md mx-auto p-6">
+		<p class="term-muted text-sm mb-1">{ t(ctx, "login.cmd") }</p>
+		<h1 class="text-lg font-bold mb-4">{ t(ctx, "login.title") }</h1>
+		@LoginFormView(f)
+	</div>
+}
+
+templ LoginFormView(f LoginForm) {
+	<form class="term-box p-5" hx-post="/auth/login" hx-target="this" hx-swap="outerHTML" hx-disabled-elt="find button[type=submit]">
+		@TermInput("login-email", "email", t(ctx, "login.email"), "email", "you@example.com", f.Email, nil)
+		@TermInput("login-password", "password", t(ctx, "login.password"), "password", "********", f.Password, nil)
+		@ErrorLine(f.Error, "")
+		<button type="submit" class="term-btn w-full mt-2 px-3 py-2 text-sm">
+			@BusyLabel(t(ctx, "login.submit"), t(ctx, "login.loading"))
+		</button>
+		<p class="mt-4 text-sm term-muted">
+			{ t(ctx, "login.no_account") }
+			<a href="/auth/register" class="text-[var(--fg-primary)] underline">{ t(ctx, "login.register_link") }</a>
+		</p>
+	</form>
+}
+
+templ RegisterPage(f RegisterForm) {
+	<div class="max-w-md mx-auto p-6">
+		<p class="term-muted text-sm mb-1">{ t(ctx, "register.cmd") }</p>
+		<h1 class="text-lg font-bold mb-4">{ t(ctx, "register.title") }</h1>
+		@RegisterFormView(f)
+	</div>
+}
+
+templ RegisterFormView(f RegisterForm) {
+	<form class="term-box p-5" hx-post="/auth/register" hx-target="this" hx-swap="outerHTML" hx-disabled-elt="find button[type=submit]">
+		@TermInput("reg-fullname", "fullName", t(ctx, "register.full_name"), "", "Nguyen Van A", f.FullName, nil)
+		@TermInput("reg-username", "userName", t(ctx, "register.username"), "", "nguyenvana", f.UserName, nil)
+		@TermInput("reg-email", "email", t(ctx, "register.email"), "email", "you@example.com", f.Email, nil)
+		@TermInput("reg-password", "password", t(ctx, "register.password"), "password", "********", f.Password, nil)
+		@ErrorLine(f.Error, "")
+		<button type="submit" class="term-btn w-full mt-2 px-3 py-2 text-sm">
+			@BusyLabel(t(ctx, "register.submit"), t(ctx, "register.loading"))
+		</button>
+		<p class="mt-4 text-sm term-muted">
+			{ t(ctx, "register.have_account") }
+			<a href="/auth/login" class="text-[var(--fg-primary)] underline">{ t(ctx, "register.login_link") }</a>
+		</p>
+	</form>
+}

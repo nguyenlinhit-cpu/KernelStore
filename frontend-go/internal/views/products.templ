@@ -1,0 +1,241 @@
+package views
+
+import (
+	"net/url"
+
+	"github.com/KernelStore/frontend-go/internal/client"
+)
+
+// ProductsVM: dữ liệu trang /products.
+type ProductsVM struct {
+	Query      url.Values // query hiện tại (đã bỏ tham số rỗng)
+	Result     *client.PagedResult[client.Product]
+	Error      string
+	Categories []client.CategoryNode
+	CatError   string
+}
+
+func (vm ProductsVM) q(k string) string { return vm.Query.Get(k) }
+
+// with dựng URL /products từ query hiện tại + thay đổi (giá trị "" = bỏ tham số);
+// resetPage = bỏ "page" (đổi bộ lọc thì quay về trang 1) — như apply() của products.rs.
+func (vm ProductsVM) with(resetPage bool, kv ...string) string {
+	q := url.Values{}
+	for k, v := range vm.Query {
+		q[k] = v
+	}
+	for i := 0; i+1 < len(kv); i += 2 {
+		if kv[i+1] == "" {
+			q.Del(kv[i])
+		} else {
+			q.Set(kv[i], kv[i+1])
+		}
+	}
+	if resetPage {
+		q.Del("page")
+	}
+	if len(q) == 0 {
+		return "/products"
+	}
+	return "/products?" + q.Encode()
+}
+
+func (vm ProductsVM) hasFilters() bool {
+	for _, k := range []string{"category", "shop", "minPrice", "maxPrice", "search", "sort"} {
+		if vm.q(k) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func catClass(active bool, base string) string {
+	if active {
+		return base + " term-active"
+	}
+	return base
+}
+
+templ ProductsPage(vm ProductsVM) {
+	<div class="p-6 max-w-7xl mx-auto">
+		<div class="mb-6">
+			<p class="term-muted text-xs mb-1">
+				~/products
+				if c := vm.q("category"); c != "" {
+					{ "/" + c }
+				}
+				<span class="caret">_</span>
+			</p>
+			<h1 class="text-xl font-bold text-[var(--fg-primary)]">$ ls ./products</h1>
+		</div>
+		<div class="flex flex-col lg:flex-row gap-6">
+			<aside class="lg:w-64 shrink-0 space-y-4">
+				<form class="term-box p-3" action="/products" method="get" data-strip-empty>
+					<p class="text-xs term-info mb-2">{ t(ctx, "products.filter") }</p>
+					for _, k := range []string{"category", "shop", "sort"} {
+						if vm.q(k) != "" {
+							<input type="hidden" name={ k } value={ vm.q(k) }/>
+						}
+					}
+					<label class="block text-xs term-muted mb-1">{ t(ctx, "products.search") }</label>
+					<div class="flex items-center gap-2 mb-3">
+						<span class="term-info text-sm shrink-0">&gt;</span>
+						<div class="relative w-full" data-suggest>
+							<input
+								class="term-input w-full px-2 py-1 text-sm"
+								name="search"
+								autocomplete="off"
+								placeholder="grep name..."
+								value={ vm.q("search") }
+								hx-get="/x/products/suggest"
+								hx-trigger="input changed delay:150ms"
+								hx-target="next [data-suggest-list]"
+								hx-swap="innerHTML"
+								hx-sync="this:replace"
+							/>
+							<div data-suggest-list></div>
+						</div>
+					</div>
+					<label class="block text-xs term-muted mb-1">{ t(ctx, "products.price_range") }</label>
+					<div class="flex items-center gap-2 mb-3">
+						<input class="term-input w-full px-2 py-1 text-sm" type="number" step="any" name="minPrice" placeholder="min" value={ vm.q("minPrice") }/>
+						<span class="term-muted">—</span>
+						<input class="term-input w-full px-2 py-1 text-sm" type="number" step="any" name="maxPrice" placeholder="max" value={ vm.q("maxPrice") }/>
+					</div>
+					<button type="submit" class="term-btn w-full px-2 py-1 text-sm">{ t(ctx, "products.apply_filters") }</button>
+					if vm.hasFilters() {
+						<a href="/products" class="term-btn block text-center w-full px-2 py-1 text-sm mt-2 term-warn">{ t(ctx, "products.clear_all") }</a>
+					}
+				</form>
+				<form class="term-box p-3" action="/products" method="get" data-strip-empty>
+					<p class="text-xs term-info mb-2">{ t(ctx, "products.sort") }</p>
+					for _, k := range []string{"category", "shop", "minPrice", "maxPrice", "search"} {
+						if vm.q(k) != "" {
+							<input type="hidden" name={ k } value={ vm.q(k) }/>
+						}
+					}
+					<select class="term-input w-full px-2 py-1 text-sm" name="sort" onchange="this.form.requestSubmit()">
+						@sortOption("", t(ctx, "products.sort.newest"), vm.q("sort"))
+						@sortOption("price_asc", t(ctx, "products.sort.price_asc"), vm.q("sort"))
+						@sortOption("price_desc", t(ctx, "products.sort.price_desc"), vm.q("sort"))
+						@sortOption("name", t(ctx, "products.sort.name"), vm.q("sort"))
+					</select>
+				</form>
+				<div class="term-box p-3">
+					<p class="text-xs term-info mb-2">{ t(ctx, "products.categories") }</p>
+					<a href={ templ.SafeURL(vm.with(true, "category", "")) } class={ catClass(vm.q("category") == "", "term-menu-item block w-full text-left px-2 py-1 text-sm") }>{ t(ctx, "products.all") }</a>
+					if vm.CatError != "" {
+						<p class="term-error text-xs px-2 py-1">{ vm.CatError }</p>
+					} else if len(vm.Categories) == 0 {
+						<p class="term-muted text-xs px-2 py-1">{ t(ctx, "products.cat_none") }</p>
+					} else {
+						for _, fc := range Flatten(vm.Categories) {
+							<a
+								href={ templ.SafeURL(vm.with(true, "category", fc.Node.Slug)) }
+								class={ catClass(vm.q("category") == fc.Node.Slug, "term-menu-item flex justify-between w-full text-left px-2 py-1 text-sm") }
+								style={ templ.SafeCSS(categoryIndent(fc.Depth)) }
+							>
+								<span>{ fc.Node.Name }</span>
+								<span class="term-muted text-xs">{ itoa(fc.Node.ProductCount) }</span>
+							</a>
+						}
+					}
+				</div>
+			</aside>
+			<section class="flex-1 min-w-0">
+				if s := vm.q("shop"); s != "" {
+					<p class="term-info text-xs mb-3">{ t(ctx, "products.filtered_shop") } { s }</p>
+				}
+				if vm.Error != "" {
+					<p class="term-error py-12 text-center">{ t(ctx, "products.error") } { vm.Error }</p>
+				} else if vm.Result == nil || len(vm.Result.Items) == 0 {
+					<div class="term-box p-12 text-center">
+						<p class="term-muted">{ t(ctx, "products.no_match") }</p>
+					</div>
+				} else {
+					<div class="flex items-center justify-between mb-4 text-xs term-muted">
+						<span>{ itoa(vm.Result.Total) + " " + t(ctx, "common.results") }</span>
+						<span>{ t(ctx, "common.page") + " " + itoa(vm.Result.Page) + "/" + itoa(max(vm.Result.TotalPages, 1)) }</span>
+					</div>
+					<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+						for i := range vm.Result.Items {
+							@ProductGridCard(&vm.Result.Items[i])
+						}
+					</div>
+					@Pagination(vm, vm.Result.Page, vm.Result.TotalPages)
+				}
+			</section>
+		</div>
+	</div>
+}
+
+templ sortOption(value, label, current string) {
+	<option value={ value } selected?={ value == current }>{ label }</option>
+}
+
+templ Pagination(vm ProductsVM, page, totalPages int) {
+	if totalPages > 1 {
+		<div class="flex items-center justify-center gap-2 mt-6">
+			if page > 1 {
+				<a href={ templ.SafeURL(vm.with(false, "page", itoa(page-1))) } class="term-btn px-3 py-1 text-sm">{ t(ctx, "products.prev") }</a>
+			} else {
+				<span class="term-btn term-disabled px-3 py-1 text-sm opacity-50">{ t(ctx, "products.prev") }</span>
+			}
+			<span class="term-muted text-sm px-2">{ itoa(page) + " / " + itoa(totalPages) }</span>
+			if page < totalPages {
+				<a href={ templ.SafeURL(vm.with(false, "page", itoa(page+1))) } class="term-btn px-3 py-1 text-sm">{ t(ctx, "products.next") }</a>
+			} else {
+				<span class="term-btn term-disabled px-3 py-1 text-sm opacity-50">{ t(ctx, "products.next") }</span>
+			}
+		</div>
+	}
+}
+
+templ ProductGridCard(p *client.Product) {
+	{{ image := client.PrimaryImage(p.Images) }}
+	<a href={ templ.SafeURL("/products/" + p.Slug) } class="term-box p-0 flex flex-col group">
+		<div class="relative aspect-square overflow-hidden bg-[var(--bg-tertiary)] flex items-center justify-center">
+			if image != "" {
+				<img src={ image } alt={ p.Name } class="w-full h-full object-cover" loading="lazy"/>
+			} else {
+				<span class="term-muted text-4xl">[ ]</span>
+			}
+			if p.SalePrice != nil {
+				<span class="absolute top-2 left-2 px-2 py-0.5 text-xs term-active">SALE</span>
+			}
+			if p.StockQuantity <= 0 {
+				<span class="absolute top-2 right-2 px-2 py-0.5 text-xs term-warn border border-[var(--warning)]">{ t(ctx, "products.out_of_stock") }</span>
+			}
+		</div>
+		<div class="p-3 flex flex-col flex-1">
+			<p class="text-xs term-info mb-1">{ orDefault(p.CategoryName, t(ctx, "products.uncategorized")) }</p>
+			<h3 class="text-sm text-[var(--fg-primary)] mb-1 line-clamp-1 group-hover:underline">{ p.Name }</h3>
+			<p class="text-xs term-muted line-clamp-2 flex-1 mb-2">{ p.Description }</p>
+			<div class="flex items-center justify-between pt-2 border-t border-[var(--border)]">
+				<div class="flex items-baseline gap-1">
+					<span class="text-sm font-bold text-[var(--fg-primary)]">{ money(effectivePrice(p)) }</span>
+					if p.SalePrice != nil {
+						<span class="text-xs line-through term-muted">{ money(p.Price) }</span>
+					}
+				</div>
+				<span class="text-xs term-muted truncate max-w-[8rem]">{ orDefault(p.ShopName, t(ctx, "products.unknown_shop")) }</span>
+			</div>
+		</div>
+	</a>
+}
+
+// Suggestions: danh sách gợi ý khi gõ ≥ 2 ký tự (rỗng → không hiện gì).
+templ Suggestions(items []client.Product) {
+	if len(items) > 0 {
+		<ul class="absolute z-30 left-0 right-0 mt-1 term-box p-1 max-h-72 overflow-y-auto shadow-lg">
+			for i := range items {
+				<li>
+					<a href={ templ.SafeURL("/products/" + items[i].Slug) } class="term-menu-item px-2 py-1.5 text-sm cursor-pointer flex justify-between gap-2">
+						<span class="truncate">{ items[i].Name }</span>
+						<span class="term-muted text-xs shrink-0">{ money(effectivePrice(&items[i])) }</span>
+					</a>
+				</li>
+			}
+		</ul>
+	}
+}

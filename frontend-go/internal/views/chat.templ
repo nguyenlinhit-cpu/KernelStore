@@ -1,0 +1,87 @@
+package views
+
+import (
+	"context"
+
+	"github.com/KernelStore/frontend-go/internal/client"
+)
+
+// ChatVM: trang /chat (?c=<id> mở sẵn một hội thoại).
+type ChatVM struct {
+	Conversations []client.Conversation
+	Selected      string
+	Messages      []client.ChatMessage
+	WSURL         string // ws://.../ws/chat?access_token=... (token nhúng vào trang)
+}
+
+func (vm ChatVM) activeName(ctx context.Context) string {
+	for _, c := range vm.Conversations {
+		if c.ID == vm.Selected {
+			return c.OtherName
+		}
+	}
+	return t(ctx, "chat.convo")
+}
+
+templ ChatPage(vm ChatVM) {
+	<div class="max-w-5xl mx-auto p-6" data-chat data-ws-url={ vm.WSURL } data-conversation={ vm.Selected } data-me={ userID(ctx) }>
+		<p class="term-muted text-sm mb-1">$ kernelstore --chat</p>
+		<h1 class="text-lg font-bold mb-4">{ t(ctx, "chat.title") }</h1>
+		<div class="grid grid-cols-1 sm:grid-cols-[16rem_1fr] gap-4">
+			<aside class="term-box p-2 h-[28rem] overflow-y-auto" hx-get={ "/x/chat/list?c=" + vm.Selected } hx-trigger="chat-refresh from:body" hx-swap="innerHTML">
+				@ChatList(vm.Conversations, vm.Selected)
+			</aside>
+			<section class="term-box flex flex-col h-[28rem]">
+				if vm.Selected == "" {
+					<div class="flex-1 flex items-center justify-center">
+						<p class="term-muted text-sm">{ t(ctx, "chat.pick_convo") }</p>
+					</div>
+				} else {
+					<div class="border-b border-[var(--border)] p-2 bg-[var(--bg-secondary)] flex justify-between items-center shrink-0">
+						<span class="text-sm font-bold text-[var(--fg-primary)]">{ t(ctx, "chat.with") + vm.activeName(ctx) }</span>
+					</div>
+					<div id="messages" class="flex-1 overflow-y-auto p-3 flex flex-col gap-2" data-chat-messages>
+						for i := range vm.Messages {
+							@ChatBubble(&vm.Messages[i])
+						}
+					</div>
+					<form class="border-t border-[var(--border)] p-2 flex items-center gap-2" hx-post={ "/x/chat/" + vm.Selected + "/send" } hx-target="#messages" hx-swap="beforeend" data-chat-form>
+						<input name="content" autocomplete="off" class="term-input flex-1 px-3 py-2 text-sm" placeholder={ t(ctx, "chat.input_ph") }/>
+						<button type="submit" class="term-btn px-4 py-2 text-sm">{ t(ctx, "chat.send") }</button>
+					</form>
+				}
+			</section>
+		</div>
+	</div>
+}
+
+templ ChatList(list []client.Conversation, selected string) {
+	if len(list) == 0 {
+		<p class="term-muted text-xs p-2">{ t(ctx, "chat.no_convos") }</p>
+	} else {
+		<div class="flex flex-col gap-1">
+			for _, c := range list {
+				<a href={ templ.SafeURL("/chat?c=" + c.ID) } class={ "term-menu-item text-left px-2 py-2 block", templ.KV("term-active", c.ID == selected) }>
+					<div class="flex justify-between items-center gap-2">
+						<span class="text-sm text-[var(--fg-primary)] truncate">{ c.OtherName }</span>
+						if c.UnreadCount > 0 {
+							<span class="term-warn text-xs shrink-0">{ "(" + itoa(c.UnreadCount) + ")" }</span>
+						}
+					</div>
+					<p class="term-muted text-xs truncate">{ orDefault(c.LastMessage, "—") }</p>
+				</a>
+			}
+		</div>
+	}
+}
+
+// ChatBubble: tin của mình canh phải, của phía kia canh trái (app.js dựng giống hệt cho tin realtime).
+templ ChatBubble(m *client.ChatMessage) {
+	{{ mine := m.SenderID == userID(ctx) }}
+	<div class={ "flex", templ.KV("justify-end", mine), templ.KV("justify-start", !mine) } data-msg-id={ m.ID }>
+		<div class={ "max-w-[75%] px-3 py-2 rounded text-sm", templ.KV("bg-[var(--bg-tertiary)] text-[var(--fg-primary)]", mine), templ.KV("term-sub", !mine) }>
+			<p class="whitespace-pre-wrap break-words">{ m.Content }</p>
+			<p class="term-muted text-[10px] mt-1">{ shortTime(m.CreatedAt) }</p>
+		</div>
+	</div>
+}

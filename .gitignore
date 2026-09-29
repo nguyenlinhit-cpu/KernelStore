@@ -23,3 +23,6 @@ frontend/dist/
 # LibreOffice lock files
 .~lock.*#
 test/wsclient/wsclient
+
+# frontend-go: thư mục build của air
+frontend-go/tmp/

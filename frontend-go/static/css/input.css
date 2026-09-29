@@ -1,0 +1,378 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================================
+   KernelStore — "luxury terminal" theme.
+   Keeps the Linux/terminal identity (mono font, neon-green prompts, kernel
+   panic) but elevated: soft rounded glass panels, neon glow, gradient accents,
+   an ambient circuit-grid + aurora backdrop, and tasteful motion.
+   Restyle happens centrally through the shared term-* classes + CSS vars so
+   every page inherits the new look.
+   ========================================================================== */
+
+:root {
+  --bg-primary: #05070a;
+  --bg-secondary: #0b0f14;
+  --bg-tertiary: #11161d;
+
+  /* Light readable body text (premium terminal) with neon-green as the accent. */
+  --fg-primary: #e6f0ea;
+  --fg-secondary: #00d4aa;
+  --fg-muted: #7d8a83;
+
+  --border: #1c2630;
+  --border-accent: #00ff5f;
+
+  --error: #ff3b5c;
+  --warning: #ffb020;
+  --info: #38d6ff;
+
+  /* Neon accent + partners used for glows and gradient text. */
+  --accent: #00ff5f;
+  --accent-secondary: #00d4aa;
+  --accent-tertiary: #00ccff;
+  --glow: rgba(0, 255, 95, 0.28);
+  --glow-soft: rgba(0, 255, 95, 0.10);
+
+  /* Aliases kept in sync with tokens (used across pages/home hero). */
+  --bg: var(--bg-primary);
+  --fg-error: var(--error);
+
+  /* Soft-but-terminal corner radii. */
+  --r-card: 14px;
+  --r-ctl: 10px;
+  --r-pill: 9999px;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--fg-primary);
+  font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 14px;
+  line-height: 1.55;
+  font-feature-settings: "liga" 1, "calt" 1;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  min-height: 100vh;
+}
+
+::selection {
+  background: rgba(0, 255, 95, 0.28);
+  color: #05070a;
+}
+
+/* ---- Ambient backdrop (fixed, behind everything) ------------------------- */
+.app-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(0, 255, 95, 0.08), transparent 60%),
+    radial-gradient(1000px 700px at 100% 0%, rgba(0, 204, 255, 0.06), transparent 55%),
+    radial-gradient(900px 900px at 50% 120%, rgba(0, 212, 170, 0.06), transparent 60%),
+    var(--bg-primary);
+}
+.app-bg-grid {
+  position: absolute;
+  inset: -2px;
+  background-image:
+    linear-gradient(rgba(0, 255, 95, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 95, 0.045) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(circle at 50% 40%, #000 0%, transparent 78%);
+  -webkit-mask-image: radial-gradient(circle at 50% 40%, #000 0%, transparent 78%);
+}
+.app-bg-aurora {
+  position: absolute;
+  width: 60vw;
+  height: 60vw;
+  top: -20vw;
+  left: -10vw;
+  background: radial-gradient(circle, rgba(0, 255, 95, 0.10), transparent 60%);
+  filter: blur(40px);
+  animation: bgfloat 16s ease-in-out infinite;
+}
+.app-bg-scan {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.014) 0px,
+    rgba(255, 255, 255, 0.014) 1px,
+    transparent 2px,
+    transparent 4px
+  );
+  opacity: 0.5;
+}
+@keyframes bgfloat {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(6vw, 6vw); }
+}
+
+/* ---- Scrollbar ----------------------------------------------------------- */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(var(--accent-secondary), var(--accent));
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+/* ---- Typewriter loading + caret (terminal identity, preserved) ----------- */
+@keyframes blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.caret {
+  animation: blink 1s step-end infinite;
+}
+@keyframes typewriter {
+  0%   { width: 0; }
+  60%  { width: var(--tw); }
+  100% { width: var(--tw); }
+}
+@keyframes caret-blink {
+  0%, 49%   { border-color: currentColor; }
+  50%, 100% { border-color: transparent; }
+}
+.term-typing {
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap;
+  vertical-align: bottom;
+  width: var(--tw, 10ch);
+  border-right: 0.55em solid currentColor;
+  animation:
+    typewriter 2.4s steps(var(--steps, 12), end) infinite,
+    caret-blink 0.8s step-end infinite;
+}
+
+/* ---- Panels -------------------------------------------------------------- */
+.term-box {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0));
+  background-color: rgba(11, 15, 20, 0.72);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.term-box:hover {
+  border-color: rgba(0, 255, 95, 0.45);
+}
+
+/* Product / feature card — glass panel that lights up with a neon glow and a
+   sweeping top sheen on hover. Uses --card-accent when a page tints it. */
+.term-card {
+  position: relative;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0));
+  background-color: rgba(11, 15, 20, 0.66);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.term-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--card-accent, var(--accent)), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.term-card:hover {
+  border-color: var(--card-accent, var(--accent));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--card-accent, var(--accent)) 30%, transparent),
+    0 18px 50px rgba(0, 0, 0, 0.5),
+    0 0 40px color-mix(in srgb, var(--card-accent, var(--accent)) 14%, transparent);
+  transform: translateY(-4px);
+}
+.term-card:hover::before {
+  opacity: 1;
+}
+
+.term-row {
+  background: rgba(5, 7, 10, 0.6);
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.term-row:hover {
+  border-color: rgba(0, 255, 95, 0.35);
+}
+.term-sub {
+  background: rgba(5, 7, 10, 0.5);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-ctl);
+}
+
+/* ---- Buttons ------------------------------------------------------------- */
+.term-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  background: rgba(0, 255, 95, 0.04);
+  color: var(--accent);
+  border: 1px solid rgba(0, 255, 95, 0.35);
+  border-radius: var(--r-ctl);
+  cursor: pointer;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  overflow: hidden;
+  transition: color 0.2s ease, border-color 0.2s ease, box-shadow 0.25s ease, transform 0.12s ease, background 0.2s ease;
+}
+/* shimmer sweep */
+.term-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 20%, rgba(0, 255, 95, 0.18) 50%, transparent 80%);
+  transform: translateX(-120%);
+  transition: transform 0.6s ease;
+}
+.term-btn:hover {
+  color: #05070a;
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(0, 255, 95, 0.4), 0 8px 26px rgba(0, 255, 95, 0.22);
+}
+.term-btn:hover::after {
+  transform: translateX(120%);
+}
+.term-btn:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+.term-active {
+  background: var(--accent);
+  color: #05070a;
+  border-color: var(--accent);
+  box-shadow: 0 0 18px rgba(0, 255, 95, 0.35);
+}
+.term-active:hover {
+  background: var(--accent);
+  color: #05070a;
+}
+
+/* ---- Menu (nav) ---------------------------------------------------------- */
+.term-menu-item {
+  background: transparent;
+  color: var(--fg-muted);
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+}
+.term-menu-item:hover:not(.term-disabled) {
+  color: var(--accent);
+  background: rgba(0, 255, 95, 0.08);
+  border-color: rgba(0, 255, 95, 0.25);
+}
+.term-menu-item.term-active {
+  background: var(--accent);
+  color: #05070a;
+  border-color: var(--accent);
+}
+.term-menu-item.term-disabled {
+  color: var(--fg-muted);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* ---- Inputs -------------------------------------------------------------- */
+.term-input {
+  background: rgba(5, 7, 10, 0.7);
+  color: var(--fg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--r-ctl);
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.term-input:focus {
+  border-color: var(--border-accent);
+  background: rgba(5, 7, 10, 0.9);
+  box-shadow: 0 0 0 3px rgba(0, 255, 95, 0.14), 0 0 18px rgba(0, 255, 95, 0.14);
+}
+.term-input::placeholder {
+  color: var(--fg-muted);
+}
+
+/* ---- Semantic text ------------------------------------------------------- */
+.term-error { color: var(--error); }
+.term-warn  { color: var(--warning); }
+.term-info  { color: var(--info); }
+.term-muted { color: var(--fg-muted); }
+
+/* ---- Utilities ----------------------------------------------------------- */
+/* Neon gradient text (logo, hero headings). */
+.glow-text {
+  background: linear-gradient(120deg, #eafff2 0%, var(--accent) 45%, var(--accent-tertiary) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+/* Subtle neon glow on any accent element. */
+.neon {
+  text-shadow: 0 0 10px rgba(0, 255, 95, 0.55), 0 0 26px rgba(0, 255, 95, 0.25);
+}
+/* Glass surface helper for headers/bars. */
+.glass {
+  background: rgba(8, 11, 15, 0.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+/* Animated gradient hairline (dividers, header underline). */
+.hairline-accent {
+  background: linear-gradient(90deg, transparent, rgba(0, 255, 95, 0.6), rgba(0, 204, 255, 0.5), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 6s linear infinite;
+}
+@keyframes shimmer {
+  0% { background-position: 0% 0; }
+  100% { background-position: 200% 0; }
+}
+/* Entrance helpers (used by hero/sections). */
+.fade-up { animation: fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes fade-up {
+  0% { opacity: 0; transform: translateY(16px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* Respect reduced-motion: kill ambient/decorative motion. */
+@media (prefers-reduced-motion: reduce) {
+  .app-bg-aurora,
+  .hairline-accent,
+  .term-typing,
+  .fade-up {
+    animation: none !important;
+  }
+  html { scroll-behavior: auto; }
+}
+
+/* ── HTMX: nhãn nút đổi khi request đang chạy (thay signal is_loading của Leptos) ── */
+.when-busy { display: none; }
+.htmx-request .when-idle,
+.htmx-request.when-idle { display: none; }
+.htmx-request .when-busy,
+.htmx-request.when-busy { display: inline; }
