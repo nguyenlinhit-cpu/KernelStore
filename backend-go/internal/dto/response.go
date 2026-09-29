@@ -2,7 +2,6 @@
 package dto
 
 import (
-	"encoding/json"
 	"net/http"
 )
 
@@ -83,7 +82,11 @@ func InternalError(w http.ResponseWriter, message string, errors ...string) {
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
+	body, err := MarshalJSON(v)
+	if err != nil {
+		status, body = http.StatusInternalServerError, []byte(`{"success":false,"data":null,"message":"L\u1ED7i h\u1EC7 th\u1ED1ng","errors":[]}`)
+	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+	_, _ = w.Write(body)
 }

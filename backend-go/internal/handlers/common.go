@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -29,4 +30,12 @@ func deref(p *string) string {
 		return *p
 	}
 	return ""
+}
+
+// cmpErr trả err nếu có, ngược lại tạo lỗi với thông điệp msg.
+func cmpErr(err error, msg string) error {
+	if err != nil {
+		return err
+	}
+	return errors.New(msg)
 }

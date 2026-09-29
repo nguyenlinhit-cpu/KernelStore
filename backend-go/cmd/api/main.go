@@ -27,6 +27,7 @@ import (
 	"github.com/KernelStore/backend-go/internal/middleware"
 	"github.com/KernelStore/backend-go/internal/repository"
 	"github.com/KernelStore/backend-go/internal/services"
+	"github.com/KernelStore/backend-go/internal/ws"
 )
 
 func main() {
@@ -92,7 +93,11 @@ func main() {
 	// Ảnh upload tại /uploads/ — khớp UseStaticFiles (wwwroot/uploads) của C#.
 	mux.Handle("GET /uploads/", http.StripPrefix("/uploads/", addSecurityHeaders(http.FileServer(http.Dir(uploadDir)))))
 
-	h := handlers.New(pool, cfg, tokenSvc, uploadDir)
+	// Chat realtime: kết nối WebSocket giữ in-memory (chỉ chạy 1 instance).
+	hub := ws.NewHub()
+	mux.Handle("/ws/chat", ws.Handler(hub, tokenSvc))
+
+	h := handlers.New(pool, cfg, tokenSvc, uploadDir, hub)
 	h.Register(httpx.NewRouter(mux))
 
 	// ── Middleware stack (ngoài → trong): CORS → Recovery → Logger → Authentication ──

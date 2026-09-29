@@ -7,6 +7,7 @@ import (
 	"github.com/KernelStore/backend-go/internal/config"
 	"github.com/KernelStore/backend-go/internal/httpx"
 	"github.com/KernelStore/backend-go/internal/services"
+	"github.com/KernelStore/backend-go/internal/ws"
 )
 
 // Handler giữ các phụ thuộc dùng chung (tương đương DI container của ASP.NET).
@@ -15,10 +16,11 @@ type Handler struct {
 	cfg       *config.Config
 	tokens    *services.TokenService
 	uploadDir string
+	hub       *ws.Hub
 }
 
-func New(db *pgxpool.Pool, cfg *config.Config, tokens *services.TokenService, uploadDir string) *Handler {
-	return &Handler{db: db, cfg: cfg, tokens: tokens, uploadDir: uploadDir}
+func New(db *pgxpool.Pool, cfg *config.Config, tokens *services.TokenService, uploadDir string, hub *ws.Hub) *Handler {
+	return &Handler{db: db, cfg: cfg, tokens: tokens, uploadDir: uploadDir, hub: hub}
 }
 
 // Register đăng ký toàn bộ endpoint /api/* (tương đương app.MapControllers()).
@@ -36,4 +38,5 @@ func (h *Handler) Register(rt *httpx.Router) {
 	h.registerReviews(rt)
 	h.registerWarranty(rt)
 	h.registerAdmin(rt)
+	h.registerChat(rt)
 }
