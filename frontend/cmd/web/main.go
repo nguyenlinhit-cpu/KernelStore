@@ -22,7 +22,7 @@ func main() {
 	wsBase := envOr("WS_BASE", "ws://localhost:5000/ws/chat")
 	staticDir := envOr("STATIC_DIR", findStatic())
 
-	app := web.New(client.New(apiBase), staticDir, wsBase)
+	app := web.New(client.New(apiBase), staticDir, wsBase, apiBase)
 	server := &http.Server{
 		Addr:              addr,
 		Handler:           app.Handler(),

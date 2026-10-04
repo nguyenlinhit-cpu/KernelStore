@@ -17,6 +17,14 @@ type ProductsVM struct {
 
 func (vm ProductsVM) q(k string) string { return vm.Query.Get(k) }
 
+func (vm ProductsVM) catalogURL() string {
+	q := vm.Query.Encode()
+	if q == "" {
+		return "/x/products/grid"
+	}
+	return "/x/products/grid?" + q
+}
+
 // with dựng URL /products từ query hiện tại + thay đổi (giá trị "" = bỏ tham số);
 // resetPage = bỏ "page" (đổi bộ lọc thì quay về trang 1) — như apply() của products.rs.
 func (vm ProductsVM) with(resetPage bool, kv ...string) string {
@@ -142,31 +150,41 @@ templ ProductsPage(vm ProductsVM) {
 					}
 				</div>
 			</aside>
-			<section class="flex-1 min-w-0">
-				if s := vm.q("shop"); s != "" {
-					<p class="term-info text-xs mb-3">{ t(ctx, "products.filtered_shop") } { s }</p>
-				}
-				if vm.Error != "" {
-					<p class="term-error py-12 text-center">{ t(ctx, "products.error") } { vm.Error }</p>
-				} else if vm.Result == nil || len(vm.Result.Items) == 0 {
-					<div class="term-box p-12 text-center">
-						<p class="term-muted">{ t(ctx, "products.no_match") }</p>
-					</div>
-				} else {
-					<div class="flex items-center justify-between mb-4 text-xs term-muted">
-						<span>{ itoa(vm.Result.Total) + " " + t(ctx, "common.results") }</span>
-						<span>{ t(ctx, "common.page") + " " + itoa(vm.Result.Page) + "/" + itoa(max(vm.Result.TotalPages, 1)) }</span>
-					</div>
-					<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-						for i := range vm.Result.Items {
-							@ProductGridCard(&vm.Result.Items[i])
-						}
-					</div>
-					@Pagination(vm, vm.Result.Page, vm.Result.TotalPages)
-				}
-			</section>
+			@ProductsCatalog(vm)
 		</div>
 	</div>
+}
+
+templ ProductsCatalog(vm ProductsVM) {
+	<section
+		id="products-catalog"
+		class="flex-1 min-w-0"
+		hx-get={ templ.SafeURL(vm.catalogURL()) }
+		hx-trigger="product-updated from:body"
+		hx-swap="outerHTML"
+	>
+		if s := vm.q("shop"); s != "" {
+			<p class="term-info text-xs mb-3">{ t(ctx, "products.filtered_shop") } { s }</p>
+		}
+		if vm.Error != "" {
+			<p class="term-error py-12 text-center">{ t(ctx, "products.error") } { vm.Error }</p>
+		} else if vm.Result == nil || len(vm.Result.Items) == 0 {
+			<div class="term-box p-12 text-center">
+				<p class="term-muted">{ t(ctx, "products.no_match") }</p>
+			</div>
+		} else {
+			<div class="flex items-center justify-between mb-4 text-xs term-muted">
+				<span>{ itoa(vm.Result.Total) + " " + t(ctx, "common.results") }</span>
+				<span>{ t(ctx, "common.page") + " " + itoa(vm.Result.Page) + "/" + itoa(max(vm.Result.TotalPages, 1)) }</span>
+			</div>
+			<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+				for i := range vm.Result.Items {
+					@ProductGridCard(&vm.Result.Items[i])
+				}
+			</div>
+			@Pagination(vm, vm.Result.Page, vm.Result.TotalPages)
+		}
+	</section>
 }
 
 templ sortOption(value, label, current string) {

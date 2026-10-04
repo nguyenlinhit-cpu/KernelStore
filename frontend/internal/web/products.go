@@ -44,6 +44,45 @@ func (a *App) productsPage(w http.ResponseWriter, r *http.Request) {
 	page(w, r, views.ProductsPage(vm))
 }
 
+// productsGrid: fragment HTML cho khu vực danh sách sản phẩm (cập nhật realtime khi có sự kiện).
+func (a *App) productsGrid(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	q := url.Values{}
+	for _, k := range []string{"category", "shop", "minPrice", "maxPrice", "search", "sort", "page"} {
+		if v := strings.TrimSpace(r.URL.Query().Get(k)); v != "" {
+			q.Set(k, v)
+		}
+	}
+	pq := client.ProductQuery{
+		Category: q.Get("category"), Shop: q.Get("shop"), Search: q.Get("search"), Sort: q.Get("sort"),
+		MinPrice: parseFloat(q.Get("minPrice")), MaxPrice: parseFloat(q.Get("maxPrice")),
+		Page: 1, PageSize: productsPageSize,
+	}
+	if n, err := strconv.ParseUint(q.Get("page"), 10, 32); err == nil {
+		pq.Page = int(n)
+	}
+
+	vm := views.ProductsVM{Query: q}
+	var err error
+	if vm.Result, err = a.api.ListProducts(ctx, pq); err != nil {
+		vm.Error = err.Error()
+	}
+	if vm.Categories, err = a.api.ListCategories(ctx); err != nil {
+		vm.CatError = err.Error()
+	}
+	fragment(w, r, views.ProductsCatalog(vm))
+}
+
+func (a *App) productDetailFragment(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	p, err := a.api.GetProduct(ctx, r.PathValue("slug"))
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	fragment(w, r, views.ProductView(p))
+}
+
 // suggest: gõ ≥ 2 ký tự → tối đa 6 sản phẩm khớp.
 func (a *App) suggest(w http.ResponseWriter, r *http.Request) {
 	term := r.URL.Query().Get("search")

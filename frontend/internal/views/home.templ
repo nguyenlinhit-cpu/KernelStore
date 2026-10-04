@@ -69,7 +69,7 @@ templ HomePage() {
 					</div>
 					<a href="/products" class="term-btn px-4 py-2 text-sm">{ t(ctx, "home.featured.view_all") }</a>
 				</div>
-				<div hx-get="/x/home/featured" hx-trigger="load" hx-swap="outerHTML">
+				<div id="home-featured-list" hx-get="/x/home/featured" hx-trigger="load, product-updated from:body" hx-swap="outerHTML">
 					<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
 						for range 4 {
 							@FeaturedCardSkeleton()
@@ -94,20 +94,22 @@ templ HomePage() {
 }
 
 templ HomeFeatured(products []client.Product, errMsg string) {
-	if errMsg != "" {
-		<p class="text-center term-error py-12">{ t(ctx, "home.featured.failed") } { errMsg }</p>
-	} else if len(products) == 0 {
-		<div class="text-center py-12">
-			<p class="text-[var(--fg-muted)]">{ t(ctx, "home.featured.empty") }</p>
-			<a href="/seller" class="term-btn mt-4 inline-block">{ t(ctx, "home.featured.add_first") }</a>
-		</div>
-	} else {
-		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-			for i := range products {
-				@FeaturedCard(&products[i])
-			}
-		</div>
-	}
+	<div id="home-featured-list" hx-get="/x/home/featured" hx-trigger="product-updated from:body" hx-swap="outerHTML">
+		if errMsg != "" {
+			<p class="text-center term-error py-12">{ t(ctx, "home.featured.failed") } { errMsg }</p>
+		} else if len(products) == 0 {
+			<div class="text-center py-12">
+				<p class="text-[var(--fg-muted)]">{ t(ctx, "home.featured.empty") }</p>
+				<a href="/seller" class="term-btn mt-4 inline-block">{ t(ctx, "home.featured.add_first") }</a>
+			</div>
+		} else {
+			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+				for i := range products {
+					@FeaturedCard(&products[i])
+				}
+			</div>
+		}
+	</div>
 }
 
 // DomainCard: ô chuyên ngành IT, dẫn tới danh mục tương ứng, tô màu riêng.

@@ -22,7 +22,13 @@ templ ProductView(p *client.ProductDetail) {
 	{{ category := orDefault(p.CategoryName, t(ctx, "products.uncategorized")) }}
 	{{ inStock := p.StockQuantity > 0 }}
 	{{ primary := client.PrimaryImage(p.Images) }}
-	<p class="term-muted text-xs mb-4">
+	<div
+		id="product-detail-view"
+		hx-get={ templ.SafeURL("/x/products/" + p.Slug + "/detail") }
+		hx-trigger="product-updated from:body"
+		hx-swap="outerHTML"
+	>
+		<p class="term-muted text-xs mb-4">
 		{ "~/products/" + category + "/" + p.Slug }
 		<span class="caret">_</span>
 	</p>
@@ -124,10 +130,11 @@ templ ProductView(p *client.ProductDetail) {
 			<a href={ templ.SafeURL("/products?shop=" + p.Shop.Slug) } class="term-btn px-4 py-2 text-sm shrink-0">{ t(ctx, "pd.view_shop") }</a>
 		</div>
 	</div>
-	<div class="mt-8" hx-get={ "/x/products/" + p.ID + "/reviews" } hx-trigger="load" hx-swap="innerHTML">
-		<p class="text-sm py-4">
-			@Loading(t(ctx, "pd.loading_reviews"))
-		</p>
+		<div class="mt-8" hx-get={ "/x/products/" + p.ID + "/reviews" } hx-trigger="load" hx-swap="innerHTML">
+			<p class="text-sm py-4">
+				@Loading(t(ctx, "pd.loading_reviews"))
+			</p>
+		</div>
 	</div>
 }
 

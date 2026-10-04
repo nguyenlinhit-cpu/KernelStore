@@ -5,6 +5,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/KernelStore/backend/internal/config"
+	"github.com/KernelStore/backend/internal/events"
 	"github.com/KernelStore/backend/internal/httpx"
 	"github.com/KernelStore/backend/internal/services"
 	"github.com/KernelStore/backend/internal/ws"
@@ -17,15 +18,19 @@ type Handler struct {
 	tokens    *services.TokenService
 	uploadDir string
 	hub       *ws.Hub
+	events    *events.Broker
 }
 
-func New(db *pgxpool.Pool, cfg *config.Config, tokens *services.TokenService, uploadDir string, hub *ws.Hub) *Handler {
-	return &Handler{db: db, cfg: cfg, tokens: tokens, uploadDir: uploadDir, hub: hub}
+func New(db *pgxpool.Pool, cfg *config.Config, tokens *services.TokenService, uploadDir string, hub *ws.Hub, events *events.Broker) *Handler {
+	return &Handler{db: db, cfg: cfg, tokens: tokens, uploadDir: uploadDir, hub: hub, events: events}
 }
 
 // Register đăng ký toàn bộ endpoint /api/* (tương đương app.MapControllers()).
 // Các nhóm endpoint được thêm dần theo từng giai đoạn chuyển đổi.
 func (h *Handler) Register(rt *httpx.Router) {
+	if h.events != nil {
+		rt.Handle("GET /api/events", httpx.Anonymous, h.events.Handler())
+	}
 	h.registerAuth(rt)
 	h.registerShops(rt)
 	h.registerAdminShops(rt)

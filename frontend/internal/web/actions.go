@@ -6,6 +6,8 @@ import "net/http"
 // Endpoint cần đăng nhập đi qua requireLogin như trang tương ứng.
 func (a *App) actionRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /x/home/featured", a.homeFeatured)
+	mux.HandleFunc("GET /x/products/grid", a.productsGrid)
+	mux.HandleFunc("GET /x/products/{slug}/detail", a.productDetailFragment)
 	mux.HandleFunc("GET /x/products/suggest", a.suggest)
 	mux.HandleFunc("GET /x/products/{id}/reviews", a.productReviews)
 	mux.HandleFunc("POST /x/cart/add", a.addToCart)
@@ -42,6 +44,7 @@ func (a *App) actionRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /x/seller/products/{id}", login(a.saveProduct))
 	mux.HandleFunc("POST /x/seller/products/{id}/delete", login(a.deleteProduct))
 	mux.HandleFunc("GET /x/seller/products/{id}/row", login(a.productRow))
+	mux.HandleFunc("GET /x/seller/products/manager", login(a.productManagerFragment))
 	mux.HandleFunc("POST /x/seller/upload", login(a.uploadImage))
 	mux.HandleFunc("GET /x/seller/categories", login(a.sellerCatsForm))
 	mux.HandleFunc("POST /x/seller/categories", login(a.sellerCatSave))

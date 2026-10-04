@@ -250,5 +250,41 @@
     }
   });
 
+  // ── Realtime product updates qua Server-Sent Events (SSE) ──
+  function initProductSSE() {
+    if (typeof EventSource === "undefined") return;
+    var es = new EventSource("/events");
+
+    es.addEventListener("product-updated", function (e) {
+      var data = {};
+      try { data = JSON.parse(e.data || "{}"); } catch (_) {}
+
+      // Nếu người dùng đang tập trung (focus) nhập dữ liệu trong form sản phẩm thì không ghi đè form
+      var activeEl = document.activeElement;
+      var inForm = activeEl && activeEl.closest && activeEl.closest("#new-product-form, [data-product-form]");
+
+      if (inForm) {
+        // Chỉ làm mới các thành phần bên ngoài (catalog, home, detail)
+        var cat = document.getElementById("products-catalog");
+        if (cat) htmx.trigger(cat, "product-updated", data);
+        var feat = document.getElementById("home-featured-list");
+        if (feat) htmx.trigger(feat, "product-updated", data);
+        var det = document.getElementById("product-detail-view");
+        if (det) htmx.trigger(det, "product-updated", data);
+      } else {
+        // Làm mới tất cả thành phần trên body
+        htmx.trigger(document.body, "product-updated", data);
+      }
+
+      // Thông báo toast
+      var msg = "Sản phẩm vừa được cập nhật";
+      if (data.action === "create") msg = "Có sản phẩm mới vừa được đăng bán";
+      else if (data.action === "delete") msg = "Một sản phẩm vừa được xóa";
+      showToast("INFO", msg);
+    });
+  }
+
+  initProductSSE();
+
   htmx.onLoad(initChat);
 })();

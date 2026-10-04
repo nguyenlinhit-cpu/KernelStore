@@ -28,16 +28,27 @@ type App struct {
 	api       *client.Client
 	staticDir string
 	wsBase    string // ws://localhost:5000/ws/chat — trang chat mở WebSocket trực tiếp tới backend
+	events    *EventBroker
 }
 
-func New(api *client.Client, staticDir, wsBase string) *App {
-	return &App{api: api, staticDir: staticDir, wsBase: wsBase}
+func New(api *client.Client, staticDir, wsBase string, apiBase ...string) *App {
+	app := &App{
+		api:       api,
+		staticDir: staticDir,
+		wsBase:    wsBase,
+		events:    NewEventBroker(),
+	}
+	if len(apiBase) > 0 && apiBase[0] != "" {
+		app.startBackendEventSync(context.Background(), apiBase[0])
+	}
+	return app
 }
 
 // Handler dựng router + middleware.
 func (a *App) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.Dir(a.staticDir))))
+	mux.HandleFunc("GET /events", a.sseEvents)
 	a.routes(mux)
 	return a.withSession(mux)
 }

@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/KernelStore/backend/internal/config"
+	"github.com/KernelStore/backend/internal/events"
 	"github.com/KernelStore/backend/internal/handlers"
 	"github.com/KernelStore/backend/internal/httpx"
 	"github.com/KernelStore/backend/internal/middleware"
@@ -91,7 +92,10 @@ func main() {
 	hub := ws.NewHub()
 	mux.Handle("/ws/chat", ws.Handler(hub, tokenSvc))
 
-	h := handlers.New(pool, cfg, tokenSvc, uploadDir, hub)
+	// Events broker: SSE realtime updates cho client & frontend
+	eventsBroker := events.NewBroker()
+
+	h := handlers.New(pool, cfg, tokenSvc, uploadDir, hub, eventsBroker)
 	h.Register(httpx.NewRouter(mux))
 
 	// ── Middleware stack (ngoài → trong): CORS → Recovery → Logger → Authentication ──

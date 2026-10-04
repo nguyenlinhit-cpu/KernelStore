@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/KernelStore/backend/internal/dto"
+	"github.com/KernelStore/backend/internal/events"
 	"github.com/KernelStore/backend/internal/httpx"
 	"github.com/KernelStore/backend/internal/models"
 	"github.com/KernelStore/backend/internal/repository"
@@ -255,6 +256,9 @@ func (h *Handler) createProduct(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
+	if h.events != nil {
+		h.events.Broadcast(events.Event{Type: "product-updated", Action: "create", ID: p.ID.String(), Slug: p.Slug})
+	}
 	h.writeProduct(w, r, p.ID, "Đã thêm sản phẩm")
 }
 
@@ -304,6 +308,9 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, err)
 		return
 	}
+	if h.events != nil {
+		h.events.Broadcast(events.Event{Type: "product-updated", Action: "update", ID: p.ID.String(), Slug: p.Slug})
+	}
 	h.writeProduct(w, r, p.ID, "Đã cập nhật sản phẩm")
 }
 
@@ -315,6 +322,9 @@ func (h *Handler) deleteProduct(w http.ResponseWriter, r *http.Request) {
 	if err := repository.DeleteProduct(r.Context(), h.db, p.ID); err != nil {
 		serverError(w, r, err)
 		return
+	}
+	if h.events != nil {
+		h.events.Broadcast(events.Event{Type: "product-updated", Action: "delete", ID: p.ID.String(), Slug: p.Slug})
 	}
 	dto.OK(w, nil, "Đã xóa sản phẩm")
 }

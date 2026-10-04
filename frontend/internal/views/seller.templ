@@ -230,7 +230,13 @@ type ProductManagerVM struct {
 }
 
 templ ProductManager(vm ProductManagerVM) {
-	<div id="product-manager" hx-target="this" hx-swap="outerHTML">
+	<div
+		id="product-manager"
+		hx-target="this"
+		hx-swap="outerHTML"
+		hx-get="/x/seller/products/manager"
+		hx-trigger="product-updated from:body"
+	>
 		@SellerFlash("")
 		<div class="term-box p-5">
 			<div class="flex justify-between items-center mb-3">

@@ -37,6 +37,13 @@ func (rw *responseWriter) WriteHeader(code int) {
 // Unwrap cho http.ResponseController (Flush, SetDeadline...).
 func (rw *responseWriter) Unwrap() http.ResponseWriter { return rw.ResponseWriter }
 
+// Flush cần cho Server-Sent Events (/api/events) đi qua được middleware này.
+func (rw *responseWriter) Flush() {
+	if f, ok := rw.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
 // Hijack cần cho WebSocket (/ws/chat) đi qua được middleware này.
 func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	hj, ok := rw.ResponseWriter.(http.Hijacker)

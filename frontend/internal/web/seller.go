@@ -180,6 +180,14 @@ func (a *App) saveProduct(w http.ResponseWriter, r *http.Request) {
 		fail(err.Error())
 		return
 	}
+	action := "update"
+	if id == "" {
+		action = "create"
+	}
+	if a.events != nil {
+		a.events.Broadcast(Event{Type: "product-updated", Action: action, Slug: payload.Slug, ID: id})
+	}
+	w.Header().Set("HX-Trigger", "product-updated")
 	fragment(w, r, views.ProductManager(a.productManager(ctx, token)))
 }
 
@@ -189,8 +197,16 @@ func (a *App) deleteProduct(w http.ResponseWriter, r *http.Request) {
 	vm := a.productManager(ctx, token)
 	if err != nil {
 		vm.RowErrors[id] = err.Error()
+	} else if a.events != nil {
+		a.events.Broadcast(Event{Type: "product-updated", Action: "delete", ID: id})
 	}
+	w.Header().Set("HX-Trigger", "product-updated")
 	fragment(w, r, views.ProductManager(vm))
+}
+
+func (a *App) productManagerFragment(w http.ResponseWriter, r *http.Request) {
+	ctx, token := r.Context(), session(r).Token
+	fragment(w, r, views.ProductManager(a.productManager(ctx, token)))
 }
 
 // uploadImage: chuyển file ảnh lên backend; trả JSON {url} hoặc {error} cho app.js.
